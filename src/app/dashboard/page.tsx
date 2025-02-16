@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 // Import the custom Navbar component
 
-export default function Dashboard() {
+export default function () {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [userRole, setUserRole] = useState<"admin" | "agent" | null>(null);

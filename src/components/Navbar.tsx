@@ -1,9 +1,13 @@
 import { FaHome, FaUserFriends, FaMoneyBill, FaFileAlt, FaBell, FaPhone, FaAngleDown } from "react-icons/fa";
 import { useState } from "react";
 
-export default function Navbar() {
+interface NavbarProps {
+  handleLogout: () => Promise<void>;
+}
+
+export default function Navbar({ handleLogout }: NavbarProps) {
   return (
-    <aside className="w-64 bg-blue-900 text-white p-6 h-screen flex flex-col fixed left-0 top-0">
+    <aside className="w-64 bg-blue-900 text-white p-6 h-screen flex flex-col fixed left-0 top-0 overflow-y-auto">
       <h2 className="text-2xl font-bold mb-6">Sary CRM</h2>
       <nav className="flex-1 space-y-3">
         <NavItem link="/dashboard" label="Dashboard" icon={<FaHome />} />
@@ -30,6 +34,12 @@ export default function Navbar() {
           <NavItem link="/dashboard/communication/emails" label="Email Log" />
         </DropdownMenu>
       </nav>
+      <button
+        onClick={handleLogout}
+        className="mt-6 p-3 bg-red-500 w-full rounded-lg hover:bg-red-600"
+      >
+        Logout
+      </button>
     </aside>
   );
 }
