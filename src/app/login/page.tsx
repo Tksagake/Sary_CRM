@@ -39,12 +39,11 @@ export default function Login() {
       return;
     }
 
-    // Step 3: Redirect based on role
-    if (userRecord.role === "admin") {
-      router.push("/admin-dashboard");
-    } else {
-      router.push("/dashboard");
-    }
+    // Step 3: Store user role in localStorage for quick access
+    localStorage.setItem("user_role", userRecord.role);
+
+    // Step 4: Redirect to the dashboard (same page for all roles)
+    router.push("/dashboard");
   };
 
   return (
