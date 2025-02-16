@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
+import { FaHome, FaUserFriends, FaMoneyBill, FaFileAlt, FaBell, FaPhone, FaAngleDown } from "react-icons/fa"; // Import icons
 
 export default function Dashboard() {
   const supabase = createClientComponentClient();
@@ -48,20 +49,7 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen w-full">
       {/* Sidebar */}
-      <aside className="w-64 bg-blue-900 text-white p-6 h-screen flex flex-col fixed left-0 top-0">
-        <h2 className="text-2xl font-bold mb-6">Sary CRM</h2>
-        <nav className="flex-1">
-          <ul className="space-y-3">
-            <NavItem link="/dashboard" label="Dashboard" />
-            <NavItem link="/debtors" label="Debtors" />
-            <NavItem link="/payments" label="Payments" />
-            <NavItem link="/reports" label="Reports" />
-          </ul>
-        </nav>
-        <button onClick={handleLogout} className="mt-6 p-3 bg-red-500 w-full rounded-lg hover:bg-red-600">
-          Logout
-        </button>
-      </aside>
+      <Sidebar handleLogout={handleLogout} />
 
       {/* Main Content */}
       <main className="ml-64 flex-1 p-8">
@@ -72,13 +60,68 @@ export default function Dashboard() {
   );
 }
 
-function NavItem({ link, label }: { link: string; label: string }) {
+function Sidebar({ handleLogout }: { handleLogout: () => void }) {
+  return (
+    <aside className="w-64 bg-blue-900 text-white p-6 h-screen flex flex-col fixed left-0 top-0">
+      <h2 className="text-2xl font-bold mb-6">Sary CRM</h2>
+      <nav className="flex-1 space-y-3">
+        <NavItem link="/dashboard" label="Dashboard" icon={<FaHome />} />
+        <DropdownMenu label="Debtors" icon={<FaUserFriends />}>
+          <NavItem link="/debtors" label="View Debtors" />
+          <NavItem link="/debtors/import" label="Import Debtors" />
+          <NavItem link="/debtors/follow-ups" label="Follow-Ups" />
+        </DropdownMenu>
+        <DropdownMenu label="Payments" icon={<FaMoneyBill />}>
+          <NavItem link="/payments" label="Payment Tracking" />
+          <NavItem link="/payments/approve" label="Approve PoP" />
+        </DropdownMenu>
+        <DropdownMenu label="Reports" icon={<FaFileAlt />}>
+          <NavItem link="/reports/monthly" label="Monthly Reports" />
+          <NavItem link="/reports/performance" label="Performance Dashboard" />
+        </DropdownMenu>
+        <DropdownMenu label="Notifications" icon={<FaBell />}>
+          <NavItem link="/notifications/sms" label="Bulk SMS" />
+          <NavItem link="/notifications/reminders" label="Agent Reminders" />
+        </DropdownMenu>
+        <DropdownMenu label="Communication" icon={<FaPhone />}>
+          <NavItem link="/communication/calls" label="Call Log" />
+          <NavItem link="/communication/sms" label="SMS Log" />
+          <NavItem link="/communication/emails" label="Email Log" />
+        </DropdownMenu>
+      </nav>
+      <button onClick={handleLogout} className="mt-6 p-3 bg-red-500 w-full rounded-lg hover:bg-red-600">
+        Logout
+      </button>
+    </aside>
+  );
+}
+
+function NavItem({ link, label, icon }: { link: string; label: string; icon?: React.ReactNode }) {
   return (
     <li>
-      <a href={link} className="block p-3 rounded-lg hover:bg-blue-700 transition">
-        {label}
+      <a href={link} className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-700 transition">
+        {icon} <span>{label}</span>
       </a>
     </li>
+  );
+}
+
+function DropdownMenu({ label, children, icon }: { label: string; children: React.ReactNode; icon?: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex justify-between items-center w-full p-3 rounded-lg hover:bg-blue-700 transition"
+      >
+        <span className="flex items-center gap-3">
+          {icon} {label}
+        </span>
+        <FaAngleDown className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && <ul className="ml-5 space-y-2">{children}</ul>}
+    </div>
   );
 }
 
