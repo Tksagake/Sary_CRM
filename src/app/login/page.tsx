@@ -100,7 +100,7 @@ export default function Login() {
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-600">
-        Forgot your password? Conatct your System Administrator for assistance.       
+        Forgot your password? Contact your System Administrator for assistance.       
       </p>
     </div>
   );
