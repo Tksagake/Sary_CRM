@@ -16,7 +16,6 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    // Step 1: Authenticate user
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -27,7 +26,6 @@ export default function Login() {
       return;
     }
 
-    // Step 2: Fetch user role from the custom users table
     const { data: userRecord, error: roleError } = await supabase
       .from("users")
       .select("role")
@@ -39,44 +37,71 @@ export default function Login() {
       return;
     }
 
-    // Step 3: Redirect based on role
-    if (userRecord.role === "admin") {
-      router.push("/dashboard");
-    } else {
-      router.push("/dashboard");
-    }
+    router.push("/dashboard");
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white">
-      <div className="w-full max-w-md p-6 bg-blue-50 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-900 mb-4">Login</h2>
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-        <form onSubmit={handleLogin} className="space-y-4">
+    <div className="w-full max-w-lg bg-white/70 backdrop-blur-md p-8 rounded-xl shadow-lg border border-blue-100 flex flex-col items-center">
+      {/* Logo */}
+      <img
+        src="https://www.sni.co.ke/wp-content/uploads/2022/06/Logo.jpg"
+        alt="Sary CRM Logo"
+        className="w-38 h-auto mb-4"
+      />
+
+      {/* Header */}
+      <h2 className="text-3xl font-semibold text-center text-gray-800 mb-6">
+        Sign in to <span className="text-blue-600">Sary CRM</span>
+      </h2>
+
+      {/* Error Message */}
+      {error && (
+        <p className="text-red-500 text-sm text-center bg-red-100 p-3 rounded-md mb-4">
+          {error}
+        </p>
+      )}
+
+      {/* Form */}
+      <form onSubmit={handleLogin} className="w-full space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Email Address
+          </label>
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 border border-gray-300 bg-white rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
             required
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Password
+          </label>
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full p-3 border border-gray-300 bg-white rounded-lg text-gray-800 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
             required
           />
-          <button
-            type="submit"
-            className="w-full p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Login
-          </button>
-        </form>
-      </div>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+        >
+          Sign In
+        </button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-gray-600">
+        Forgot your password? Conatct your System Administrator for assistance.       
+      </p>
     </div>
   );
 }
