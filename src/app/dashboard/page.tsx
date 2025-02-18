@@ -72,12 +72,10 @@ export default function () {
       {/* Main Content */}
       <main className="ml-64 flex-1 p-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">
+          <h2 className="text-3xl font-bold text-gray-800">
             Welcome, {userName || "User"}
-          </h1>
-          <p className="text-lg text-gray-600">
-            Role: {userRole ? `${userRole.charAt(0).toUpperCase()}${userRole.slice(1)}` : "Loading..."}
-          </p>
+          </h2>
+          
         </div>
         {userRole === "admin" ? <AdminDashboard agents={agents} /> : <AgentDashboard />}
       </main>
