@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-// Import the custom Navbar component
+import DashboardCard from "@/components/DashboardCard";
 
-export default function () {
+export default function Dashboard() {
   const supabase = createClientComponentClient();
   const router = useRouter();
-  const [userRole, setUserRole] = useState<"admin" | "agent" | null>(null);
-  const [userName, setUserName] = useState<string | null>(null); // State for user's name
+  const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<{ full_name: string; email: string; phone?: string }[]>([]);
+  const [clientDebtors, setClientDebtors] = useState<{ debtor_name: string; debt_amount: number; deal_stage: string }[]>([]);
 
   useEffect(() => {
     async function fetchUserRole() {
@@ -35,7 +36,12 @@ export default function () {
         router.push("/login");
       } else {
         setUserRole(data.role);
-        setUserName(data.full_name); // Set user's name
+        setUserName(data.full_name);
+
+        // If user is a client, fetch their assigned debtors
+        if (data.role === "client") {
+          fetchClientDebtors(user.id);
+        }
       }
       setLoading(false);
     }
@@ -53,9 +59,26 @@ export default function () {
       }
     }
 
-    fetchUserRole();
-    fetchAgents();
-  }, [supabase, router]);
+    async function fetchClientDebtors(clientId: string) {
+      const { data, error } = await supabase
+        .from("debtors")
+        .select("debtor_name, debt_amount, deal_stage")
+        .eq("client_id", clientId);
+
+      if (error) {
+        console.error("Error fetching client debtors:", error.message);
+      } else {
+        setClientDebtors(data);
+      }
+    }
+
+    fetchUserRole().then(() => {
+      if (userRole === "admin") {
+        fetchAgents();
+      }
+    });
+
+  }, [supabase, router, userRole]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -66,18 +89,18 @@ export default function () {
 
   return (
     <div className="flex min-h-screen w-full">
-      {/* Replace manual sidebar with the custom Navbar component */}
       <Navbar handleLogout={handleLogout} />
 
-      {/* Main Content */}
       <main className="ml-64 flex-1 p-8">
         <div className="mb-6">
           <h2 className="text-3xl font-bold text-gray-800">
             Welcome, {userName || "User"}
           </h2>
-          
         </div>
-        {userRole === "admin" ? <AdminDashboard agents={agents} /> : <AgentDashboard />}
+
+        {userRole === "admin" && <AdminDashboard agents={agents} />}
+        {userRole === "agent" && <AgentDashboard />}
+        {userRole === "client" && <ClientDashboard debtors={clientDebtors} />}
       </main>
     </div>
   );
@@ -123,17 +146,28 @@ function AgentDashboard() {
   );
 }
 
-function DashboardCard({ title, value }: { title: string; value: string }) {
+function ClientDashboard({ debtors }: { debtors: { debtor_name: string; debt_amount: number; deal_stage: string }[] }) {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300">
-      <h3 className="text-lg font-semibold text-gray-700">{title}</h3>
-      <p className="text-2xl font-bold text-blue-600 mt-2">{value}</p>
+    <div>
+      <h3 className="text-lg font-semibold mb-4">Your Assigned Debtors</h3>
+      <div className="grid grid-cols-3 gap-6">
+        {debtors.length === 0 ? (
+          <p className="text-gray-600">No assigned debtors found.</p>
+        ) : (
+          debtors.map((debtor, index) => (
+            <DashboardCard
+              key={index}
+              title={`${debtor.debtor_name} (${debtor.deal_stage})`}
+              value={`KES ${debtor.debt_amount.toLocaleString()}`}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-import React from 'react';
-
+import React from "react";
 interface NavbarProps {
   handleLogout: () => Promise<void>;
 }

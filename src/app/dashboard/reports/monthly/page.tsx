@@ -3,17 +3,16 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
 
-export default function Page() {
+export default function ReportsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
-  const [userRole, setUserRole] = useState<"admin" | "agent" | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
+  const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchUserData() {
+    async function fetchUserRole() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
 
       if (authError || !user) {
@@ -21,9 +20,10 @@ export default function Page() {
         return;
       }
 
+      // Fetch user's role
       const { data, error } = await supabase
         .from("users")
-        .select("role, full_name")
+        .select("role, id")
         .eq("id", user.id)
         .single();
 
@@ -32,29 +32,50 @@ export default function Page() {
         router.push("/login");
       } else {
         setUserRole(data.role);
-        setUserName(data.full_name);
+        fetchReports(data.role, data.id);
+      }
+    }
+
+    async function fetchReports(role: string, userId: string) {
+      let query = supabase.from("reports").select("*");
+
+      if (role === "client") {
+        query = query.eq("client_id", userId); // Only show client's reports
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching reports:", error.message);
+      } else {
+        setReports(data);
       }
       setLoading(false);
     }
 
-    fetchUserData();
+    fetchUserRole();
   }, [supabase, router]);
 
   if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
 
   return (
-    <div className="flex min-h-screen w-full">
-      <Navbar />
-
-      <main className="ml-64 flex-1 p-8">
-        <h1 className="text-3xl font-bold text-gray-800">
-          📍 Page: {window.location.pathname}
-        </h1>
-        <p className="text-lg text-gray-600">
-          Welcome, {userName || "User"} (Role: {userRole ? userRole.toUpperCase() : "Loading..."})
-        </p>
-        <p className="text-gray-500">This is a placeholder for testing routing.</p>
-      </main>
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-6">Reports</h1>
+      {reports.length === 0 ? (
+        <p>No reports available.</p>
+      ) : (
+        <ul className="space-y-4">
+          {reports.map((report) => (
+            <li key={report.id} className="p-4 bg-white shadow-md rounded-md">
+              <p><strong>Report Type:</strong> {report.report_type}</p>
+              <p><strong>Generated At:</strong> {new Date(report.generated_at).toLocaleString()}</p>
+              <a href={report.file_url} className="text-blue-600 hover:underline" target="_blank">
+                Download Report
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
