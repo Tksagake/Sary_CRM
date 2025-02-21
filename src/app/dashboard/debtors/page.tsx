@@ -3,27 +3,17 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
-
-interface Debtor {
-  id: string;
-  debtor_name: string;
-  client: string;
-  debt_amount: number;
-}
 
 export default function DebtorsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [debtors, setDebtors] = useState<Debtor[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [debtors, setDebtors] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    async function fetchUserData() {
+    async function fetchUserRole() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
       if (authError || !user) {
         router.push("/login");
         return;
@@ -31,80 +21,87 @@ export default function DebtorsPage() {
 
       const { data, error } = await supabase
         .from("users")
-        .select("id, role")
+        .select("role")
         .eq("id", user.id)
         .single();
 
-      if (error || !data) {
-        console.error("Error fetching user data:", error?.message || error);
-        router.push("/login");
-      } else {
+      if (!error && data) {
         setUserRole(data.role);
-        setUserId(data.id);
+        fetchDebtors(data.role, user.id);
       }
     }
 
-    fetchUserData();
+    async function fetchDebtors(role: string, userId: string) {
+      let query = supabase.from("debtors").select("*");
+
+      if (role === "agent") {
+        query = query.eq("assigned_to", userId);
+      } else if (role === "client") {
+        query = query.eq("client_id", userId);
+      }
+
+      const { data, error } = await query;
+
+      if (!error && data) {
+        setDebtors(data);
+      }
+    }
+
+    fetchUserRole();
   }, [supabase, router]);
 
-  useEffect(() => {
-    if (userRole && userId) {
-      fetchDebtors();
-    }
-  }, [userRole, userId]);
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
-  async function fetchDebtors() {
-    let query = supabase.from("debtors").select("id, debtor_name, client, debt_amount");
-
-    if (userRole === "agent") {
-      query = query.eq("assigned_to", userId);
-    } else if (userRole === "client") {
-      query = query.eq("client_id", userId);
-    } // Admin sees all debtors, no filtering needed
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error fetching debtors:", error.message);
-    } else {
-      setDebtors(data);
-    }
-    setLoading(false);
-  }
-
-  if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
+  const filteredDebtors = debtors.filter((debtor) =>
+    debtor.debtor_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="flex min-h-screen w-full">
-      <Navbar handleLogout={async () => { await supabase.auth.signOut(); router.push("/login"); }} />
+    <div className="p-8">
+      <h2 className="text-3xl font-bold mb-6 text-blue-900">Debtors</h2>
 
-      <main className="ml-64 flex-1 p-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">Debtors</h2>
-        <table className="w-full bg-white rounded-lg shadow-md">
-          <thead className="bg-blue-600 text-white">
+      {/* Search Bar */}
+      <div className="mb-6 flex items-center gap-4">
+        <input
+          type="text"
+          placeholder="Search by name..."
+          value={searchQuery}
+          onChange={handleSearch}
+          className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto bg-white shadow-lg rounded-lg">
+        <table className="w-full border-collapse text-left">
+          <thead className="bg-blue-900 text-white">
             <tr>
-              <th className="p-3 text-left">Debtor Name</th>
-              <th className="p-3 text-left">Client</th>
-              <th className="p-3 text-left">Debt Amount (KES)</th>
+              <th className="p-4">Name</th>
+              <th className="p-4">Client (Who They Owe)</th>
+              <th className="p-4">Debt Amount (KES)</th>
+              <th className="p-4">Next Follow-Up</th>
             </tr>
           </thead>
           <tbody>
-            {debtors.length > 0 ? (
-              debtors.map((debtor) => (
-                <tr key={debtor.id} className="border-b hover:bg-gray-100">
-                  <td className="p-3">{debtor.debtor_name}</td>
-                  <td className="p-3">{debtor.client}</td>
-                  <td className="p-3 font-bold text-red-600">KES {debtor.debt_amount.toLocaleString()}</td>
+            {filteredDebtors.length > 0 ? (
+              filteredDebtors.map((debtor) => (
+                <tr key={debtor.id} className="border-b hover:bg-gray-100 transition">
+                  <td className="p-4">{debtor.debtor_name}</td>
+                  <td className="p-4 font-semibold">{debtor.client || "N/A"}</td>
+                  <td className="p-4 text-blue-700 font-semibold">{debtor.debt_amount.toLocaleString()}</td>
+                  <td className="p-4">{debtor.next_followup_date || "N/A"}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={3} className="p-4 text-center text-gray-500">No debtors found</td>
+                <td colSpan={4} className="text-center py-6 text-gray-500">No debtors found.</td>
               </tr>
             )}
           </tbody>
         </table>
-      </main>
+      </div>
     </div>
   );
 }
