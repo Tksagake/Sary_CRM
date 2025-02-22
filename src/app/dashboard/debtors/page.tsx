@@ -3,105 +3,147 @@
 import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
 
 export default function DebtorsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
   const [debtors, setDebtors] = useState<any[]>([]);
+  const [filteredDebtors, setFilteredDebtors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    async function fetchUserRole() {
+    async function fetchUserData() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
+
       if (authError || !user) {
         router.push("/login");
         return;
       }
 
-      const { data, error } = await supabase
+      // Fetch user role
+      const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("role")
+        .select("role, id")
         .eq("id", user.id)
         .single();
 
-      if (!error && data) {
-        setUserRole(data.role);
-        fetchDebtors(data.role, user.id);
+      if (userError || !userData) {
+        console.error("Error fetching user data:", userError?.message || userError);
+        router.push("/login");
+        return;
       }
+
+      setUserRole(userData.role);
+
+      // Fetch debtors & JOIN users table to get assigned agent's name
+      let query = supabase
+        .from("debtors")
+        .select("*, users:assigned_to(full_name)"); // 👈 Fetch agent's name
+
+      if (userData.role === "agent") {
+        query = query.eq("assigned_to", userData.id);
+      } else if (userData.role === "client") {
+        query = query.eq("client_id", userData.id);
+      }
+
+      const { data: debtorsData, error: debtorsError } = await query;
+
+      if (debtorsError) {
+        console.error("Error fetching debtors:", debtorsError.message);
+      } else {
+        setDebtors(debtorsData);
+        setFilteredDebtors(debtorsData);
+      }
+
+      setLoading(false);
     }
 
-    async function fetchDebtors(role: string, userId: string) {
-      let query = supabase.from("debtors").select("*");
-
-      if (role === "agent") {
-        query = query.eq("assigned_to", userId);
-      } else if (role === "client") {
-        query = query.eq("client_id", userId);
-      }
-
-      const { data, error } = await query;
-
-      if (!error && data) {
-        setDebtors(data);
-      }
-    }
-
-    fetchUserRole();
+    fetchUserData();
   }, [supabase, router]);
 
+  // Search Functionality
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+    const query = e.target.value.toLowerCase();
+    setSearchQuery(query);
+    setFilteredDebtors(
+      debtors.filter(
+        (debtor) =>
+          debtor.debtor_name.toLowerCase().includes(query) ||
+          debtor.client.toLowerCase().includes(query) ||
+          debtor.debtor_phone.includes(query) ||
+          (debtor.users?.full_name && debtor.users.full_name.toLowerCase().includes(query))
+      )
+    );
   };
 
-  const filteredDebtors = debtors.filter((debtor) =>
-    debtor.debtor_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
 
   return (
-    <div className="p-8">
-      <h2 className="text-3xl font-bold mb-6 text-blue-900">Debtors</h2>
+    <div className="flex min-h-screen w-full">
+      {/* Navbar */}
+      <Navbar handleLogout={handleLogout} />
 
-      {/* Search Bar */}
-      <div className="mb-6 flex items-center gap-4">
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={searchQuery}
-          onChange={handleSearch}
-          className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      {/* Main Content */}
+      <main className="ml-64 flex-1 p-8">
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-gray-800">Debtors</h2>
+        </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto bg-white shadow-lg rounded-lg">
-        <table className="w-full border-collapse text-left">
-          <thead className="bg-blue-900 text-white">
-            <tr>
-              <th className="p-4">Name</th>
-              <th className="p-4">Client (Who They Owe)</th>
-              <th className="p-4">Debt Amount (KES)</th>
-              <th className="p-4">Next Follow-Up</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredDebtors.length > 0 ? (
-              filteredDebtors.map((debtor) => (
-                <tr key={debtor.id} className="border-b hover:bg-gray-100 transition">
-                  <td className="p-4">{debtor.debtor_name}</td>
-                  <td className="p-4 font-semibold">{debtor.client || "N/A"}</td>
-                  <td className="p-4 text-blue-700 font-semibold">{debtor.debt_amount.toLocaleString()}</td>
-                  <td className="p-4">{debtor.next_followup_date || "N/A"}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="text-center py-6 text-gray-500">No debtors found.</td>
+        {/* Search Bar */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search debtors..."
+            value={searchQuery}
+            onChange={handleSearch}
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Debtors Table */}
+        <div className="overflow-x-auto bg-white shadow-md rounded-lg p-4">
+          <table className="w-full border-collapse border border-gray-200">
+            <thead>
+              <tr className="bg-blue-900 text-white">
+                <th className="px-4 py-2 border">Debtor Name</th>
+                <th className="px-4 py-2 border">Client (Company)</th>
+                <th className="px-4 py-2 border">Phone</th>
+                <th className="px-4 py-2 border">Debt Amount</th>
+                <th className="px-4 py-2 border">Next Follow-Up</th>
+                <th className="px-4 py-2 border">Assigned Agent</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filteredDebtors.length > 0 ? (
+                filteredDebtors.map((debtor) => (
+                  <tr key={debtor.id} className="hover:bg-gray-100">
+                    <td className="px-4 py-2 border">{debtor.debtor_name}</td>
+                    <td className="px-4 py-2 border">{debtor.client}</td>
+                    <td className="px-4 py-2 border">{debtor.debtor_phone}</td>
+                    <td className="px-4 py-2 border">KES {debtor.debt_amount.toLocaleString()}</td>
+                    <td className="px-4 py-2 border">{debtor.next_followup_date}</td>
+                    <td className="px-4 py-2 border">{debtor.users ? debtor.users.full_name : "Unassigned"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-4 py-4 text-center text-gray-600">
+                    No debtors found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </main>
     </div>
   );
 }
