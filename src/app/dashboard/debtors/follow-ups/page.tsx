@@ -15,6 +15,7 @@ export default function FollowUpsPage() {
   const [nextFollowUp, setNextFollowUp] = useState("");
   const [notes, setNotes] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     async function fetchFollowUps() {
@@ -62,14 +63,29 @@ export default function FollowUpsPage() {
     }
   }
 
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const filteredFollowUps = followUps.filter((debtor) =>
+    debtor.debtor_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="flex min-h-screen w-full">
       <Navbar />
       <main className="ml-64 flex-1 p-8">
         <h2 className="text-3xl font-bold text-gray-800 mb-6">Follow-Ups</h2>
+        <input
+          type="text"
+          placeholder="Search by debtor name..."
+          value={searchQuery}
+          onChange={handleSearch}
+          className="mb-4 p-2 border rounded-md w-full"
+        />
         {loading ? (
           <p className="text-center text-lg">Loading follow-ups...</p>
-        ) : followUps.length === 0 ? (
+        ) : filteredFollowUps.length === 0 ? (
           <p className="text-center text-lg text-gray-500">No follow-ups due.</p>
         ) : (
           <table className="w-full bg-white shadow-md rounded-lg overflow-hidden">
@@ -86,7 +102,7 @@ export default function FollowUpsPage() {
               </tr>
             </thead>
             <tbody>
-              {followUps.map((debtor) => (
+              {filteredFollowUps.map((debtor) => (
                 <tr key={debtor.id} className="border-b">
                   <td className="p-4 text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/dashboard/debtors/${debtor.id}`)}>
                     {debtor.debtor_name}
