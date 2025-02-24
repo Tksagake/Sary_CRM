@@ -11,6 +11,8 @@ export default function FollowUpsPage() {
   const [todayFollowUps, setTodayFollowUps] = useState([]);
   const [overdueFollowUps, setOverdueFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // Define the deal stages as an array of objects
   const dealStages = [
@@ -53,12 +55,41 @@ export default function FollowUpsPage() {
     async function fetchFollowUps() {
       const today = new Date().toISOString().split("T")[0];
 
+      // Fetch the logged-in user's role and ID
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role, id")
+        .eq("id", user.id)
+        .single();
+
+      if (userError || !userData) {
+        console.error("Error fetching user data:", userError?.message || userError);
+        router.push("/login");
+        return;
+      }
+
+      setUserRole(userData.role);
+      setUserId(userData.id);
+
       // Fetch debtors whose follow-up date is today or overdue
-      const { data, error } = await supabase
+      let query = supabase
         .from("debtors")
         .select("id, debtor_name, client, debtor_phone, debt_amount, next_followup_date, deal_stage, collection_update, assigned_to (full_name)")
         .lte("next_followup_date", today)
         .order("next_followup_date", { ascending: true });
+
+      // If the user is an agent, filter debtors assigned to them
+      if (userData.role === "agent") {
+        query = query.eq("assigned_to", userData.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Error fetching follow-ups:", error.message);
@@ -74,7 +105,7 @@ export default function FollowUpsPage() {
     }
 
     fetchFollowUps();
-  }, [supabase]);
+  }, [supabase, router]);
 
   return (
     <div className="flex min-h-screen w-full">

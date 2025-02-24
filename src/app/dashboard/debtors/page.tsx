@@ -198,9 +198,13 @@ export default function DebtorsPage() {
             </thead>
             <tbody>
               {filteredDebtors.map((debtor) => (
-                <tr key={debtor.id} className="hover:bg-gray-100 cursor-pointer">
+                <tr
+                  key={debtor.id}
+                  className="hover:bg-gray-100 cursor-pointer"
+                  onClick={() => handleRowClick(debtor.id)}
+                >
                   {userRole === "admin" && (
-                    <td className="px-4 py-2 border text-center">
+                    <td className="px-4 py-2 border text-center" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         onChange={() => handleSelectDebtor(debtor.id)}
@@ -214,7 +218,7 @@ export default function DebtorsPage() {
                   <td className="px-4 py-2 border">{debtor.next_followup_date}</td>
                   <td className="px-4 py-2 border">{debtor.users?.full_name || "Unassigned"}</td>
                   {userRole === "admin" && (
-                    <td className="px-4 py-2 border text-center">
+                    <td className="px-4 py-2 border text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleDeleteDebtor(debtor.id)}
                         className="bg-red-600 text-white px-3 py-1 rounded-md"
