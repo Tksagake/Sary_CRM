@@ -84,6 +84,11 @@ export default function DebtorsPage() {
     router.push("/login");
   };
 
+  // Function to handle row click
+  const handleRowClick = (debtorId: string) => {
+    router.push(`/dashboard/debtors/${debtorId}`);
+  };
+
   if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
 
   return (
@@ -124,7 +129,11 @@ export default function DebtorsPage() {
             <tbody>
               {filteredDebtors.length > 0 ? (
                 filteredDebtors.map((debtor) => (
-                  <tr key={debtor.id} className="hover:bg-gray-100">
+                  <tr
+                    key={debtor.id}
+                    className="hover:bg-gray-100 cursor-pointer"
+                    onClick={() => handleRowClick(debtor.id)} // 👈 Add onClick handler
+                  >
                     <td className="px-4 py-2 border">{debtor.debtor_name}</td>
                     <td className="px-4 py-2 border">{debtor.client}</td>
                     <td className="px-4 py-2 border">{debtor.debtor_phone}</td>
