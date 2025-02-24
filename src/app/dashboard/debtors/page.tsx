@@ -9,10 +9,13 @@ export default function DebtorsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [debtors, setDebtors] = useState<any[]>([]);
   const [filteredDebtors, setFilteredDebtors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDebtors, setSelectedDebtors] = useState<string[]>([]);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     async function fetchUserData() {
@@ -37,11 +40,12 @@ export default function DebtorsPage() {
       }
 
       setUserRole(userData.role);
+      setUserId(userData.id);
 
       // Fetch debtors & JOIN users table to get assigned agent's name
       let query = supabase
         .from("debtors")
-        .select("*, users:assigned_to(full_name)"); // 👈 Fetch agent's name
+        .select("*, users:assigned_to(full_name)");
 
       if (userData.role === "agent") {
         query = query.eq("assigned_to", userData.id);
@@ -84,9 +88,52 @@ export default function DebtorsPage() {
     router.push("/login");
   };
 
-  // Function to handle row click
+  // Handle row click to view debtor details
   const handleRowClick = (debtorId: string) => {
     router.push(`/dashboard/debtors/${debtorId}`);
+  };
+
+  // Handle single debtor delete (Admin-only)
+  const handleDeleteDebtor = async (debtorId: string) => {
+    if (!confirm("Are you sure you want to delete this debtor?")) return;
+
+    const { error } = await supabase.from("debtors").delete().eq("id", debtorId);
+
+    if (error) {
+      setMessage({ text: `Error deleting debtor: ${error.message}`, type: "error" });
+    } else {
+      setDebtors((prev) => prev.filter((debtor) => debtor.id !== debtorId));
+      setFilteredDebtors((prev) => prev.filter((debtor) => debtor.id !== debtorId));
+      setMessage({ text: "Debtor deleted successfully!", type: "success" });
+    }
+  };
+
+  // Handle bulk delete (Admin-only)
+  const handleBulkDelete = async () => {
+    if (selectedDebtors.length === 0) {
+      setMessage({ text: "No debtors selected for deletion.", type: "error" });
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete the selected debtors?")) return;
+
+    const { error } = await supabase.from("debtors").delete().in("id", selectedDebtors);
+
+    if (error) {
+      setMessage({ text: `Error deleting debtors: ${error.message}`, type: "error" });
+    } else {
+      setDebtors((prev) => prev.filter((debtor) => !selectedDebtors.includes(debtor.id)));
+      setFilteredDebtors((prev) => prev.filter((debtor) => !selectedDebtors.includes(debtor.id)));
+      setSelectedDebtors([]); // Reset selection
+      setMessage({ text: "Selected debtors deleted successfully!", type: "success" });
+    }
+  };
+
+  // Handle checkbox selection for bulk delete
+  const handleSelectDebtor = (debtorId: string) => {
+    setSelectedDebtors((prev) =>
+      prev.includes(debtorId) ? prev.filter((id) => id !== debtorId) : [...prev, debtorId]
+    );
   };
 
   if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
@@ -98,9 +145,30 @@ export default function DebtorsPage() {
 
       {/* Main Content */}
       <main className="ml-64 flex-1 p-8">
-        <div className="mb-6">
+        <div className="mb-6 flex justify-between items-center">
           <h2 className="text-3xl font-bold text-gray-800">Debtors</h2>
+
+          {/* Bulk Delete Button (Only for Admins) */}
+          {userRole === "admin" && selectedDebtors.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="bg-red-600 text-white px-4 py-2 rounded-md"
+            >
+              Delete Selected
+            </button>
+          )}
         </div>
+
+        {/* Success/Error Message */}
+        {message && (
+          <div
+            className={`p-3 mb-4 rounded-md text-white ${
+              message.type === "success" ? "bg-green-600" : "bg-red-600"
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
 
         {/* Search Bar */}
         <div className="mb-4">
@@ -118,37 +186,45 @@ export default function DebtorsPage() {
           <table className="w-full border-collapse border border-gray-200">
             <thead>
               <tr className="bg-blue-900 text-white">
+                {userRole === "admin" && <th className="px-4 py-2 border">Select</th>}
                 <th className="px-4 py-2 border">Debtor Name</th>
                 <th className="px-4 py-2 border">Client (Company)</th>
                 <th className="px-4 py-2 border">Phone</th>
                 <th className="px-4 py-2 border">Debt Amount</th>
                 <th className="px-4 py-2 border">Next Follow-Up</th>
                 <th className="px-4 py-2 border">Assigned Agent</th>
+                {userRole === "admin" && <th className="px-4 py-2 border">Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {filteredDebtors.length > 0 ? (
-                filteredDebtors.map((debtor) => (
-                  <tr
-                    key={debtor.id}
-                    className="hover:bg-gray-100 cursor-pointer"
-                    onClick={() => handleRowClick(debtor.id)} // 👈 Add onClick handler
-                  >
-                    <td className="px-4 py-2 border">{debtor.debtor_name}</td>
-                    <td className="px-4 py-2 border">{debtor.client}</td>
-                    <td className="px-4 py-2 border">{debtor.debtor_phone}</td>
-                    <td className="px-4 py-2 border">KES {debtor.debt_amount.toLocaleString()}</td>
-                    <td className="px-4 py-2 border">{debtor.next_followup_date}</td>
-                    <td className="px-4 py-2 border">{debtor.users ? debtor.users.full_name : "Unassigned"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-4 py-4 text-center text-gray-600">
-                    No debtors found.
-                  </td>
+              {filteredDebtors.map((debtor) => (
+                <tr key={debtor.id} className="hover:bg-gray-100 cursor-pointer">
+                  {userRole === "admin" && (
+                    <td className="px-4 py-2 border text-center">
+                      <input
+                        type="checkbox"
+                        onChange={() => handleSelectDebtor(debtor.id)}
+                      />
+                    </td>
+                  )}
+                  <td className="px-4 py-2 border">{debtor.debtor_name}</td>
+                  <td className="px-4 py-2 border">{debtor.client}</td>
+                  <td className="px-4 py-2 border">{debtor.debtor_phone}</td>
+                  <td className="px-4 py-2 border">KES {debtor.debt_amount.toLocaleString()}</td>
+                  <td className="px-4 py-2 border">{debtor.next_followup_date}</td>
+                  <td className="px-4 py-2 border">{debtor.users?.full_name || "Unassigned"}</td>
+                  {userRole === "admin" && (
+                    <td className="px-4 py-2 border text-center">
+                      <button
+                        onClick={() => handleDeleteDebtor(debtor.id)}
+                        className="bg-red-600 text-white px-3 py-1 rounded-md"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  )}
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>

@@ -4,22 +4,26 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter, useParams } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { FaEdit } from "react-icons/fa";
 
 export default function DebtorDetailsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
-  const { id } = useParams(); // Get debtor ID from URL
-  const [debtor, setDebtor] = useState(null);
-  const [followUps, setFollowUps] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const { id } = useParams();
+  const [debtor, setDebtor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
 
-  // Editable Fields
-  const [dealStage, setDealStage] = useState("0"); // Default to "Select"
+  // Follow-Up Fields
+  const [dealStage, setDealStage] = useState("0");
   const [nextFollowUp, setNextFollowUp] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Define the deal stages as an array of objects
+  // Admin Edit Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editedDebtor, setEditedDebtor] = useState<any>({});
+
+  // ✅ Deal Stage Dropdown List (Restored)
   const dealStages = [
     { value: "0", label: "Select" },
     { value: "1", label: "Outsource Email" },
@@ -51,58 +55,43 @@ export default function DebtorDetailsPage() {
   ];
 
   useEffect(() => {
-    async function fetchDebtor() {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      setUserRole(userData?.role);
+
       const { data, error } = await supabase
         .from("debtors")
-        .select("*, assigned_to(full_name), created_by(full_name)")
+        .select("*")
         .eq("id", id)
         .single();
 
       if (error) {
-        console.error("Error fetching debtor:", error.message);
         router.push("/dashboard/debtors");
-      } else {
-        setDebtor(data);
-        setDealStage(data.deal_stage || "0"); // Default to "Select"
-        setNextFollowUp(data.next_followup_date || "");
+        return;
       }
+
+      setDebtor(data);
+      setEditedDebtor(data);
+      setDealStage(data.deal_stage || "0");
+      setNextFollowUp(data.next_followup_date || "");
+      setLoading(false);
     }
 
-    async function fetchFollowUps() {
-      const { data, error } = await supabase
-        .from("follow_ups")
-        .select("*")
-        .eq("debtor_id", id)
-        .order("follow_up_date", { ascending: false });
-
-      if (error) console.error("Error fetching follow-ups:", error.message);
-      else setFollowUps(data || []);
-    }
-
-    async function fetchPayments() {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("debtor_id", id)
-        .order("uploaded_at", { ascending: false });
-
-      if (error) console.error("Error fetching payments:", error.message);
-      else setPayments(data || []);
-    }
-
-    fetchDebtor();
-    fetchFollowUps();
-    fetchPayments();
-    setLoading(false);
+    fetchData();
   }, [supabase, id, router]);
 
   async function updateDebtor() {
-    // Prevent saving if "Select" is chosen
-    if (dealStage === "0") {
-      alert("Please select a valid deal stage.");
-      return;
-    }
-
     const { error } = await supabase
       .from("debtors")
       .update({
@@ -113,14 +102,23 @@ export default function DebtorDetailsPage() {
       })
       .eq("id", id);
 
-    if (error) {
-      console.error("Error updating debtor:", error.message);
-      alert(`Error updating debtor: ${error.message}`);
-      return;
+    if (!error) {
+      alert("Debtor updated successfully!");
+      setDebtor({ ...debtor, deal_stage: dealStage, next_followup_date: nextFollowUp });
     }
+  }
 
-    alert("Debtor updated successfully!");
-    router.push("/dashboard/debtors/follow-ups");
+  async function updateDebtorDetails() {
+    const { error } = await supabase
+      .from("debtors")
+      .update(editedDebtor)
+      .eq("id", id);
+
+    if (!error) {
+      alert("Debtor details updated successfully!");
+      setDebtor(editedDebtor);
+      setShowEditModal(false);
+    }
   }
 
   if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
@@ -129,108 +127,83 @@ export default function DebtorDetailsPage() {
     <div className="flex min-h-screen w-full">
       <Navbar />
       <main className="ml-64 flex-1 p-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">Debtor Details</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-3xl font-bold text-gray-800">Debtor Details</h2>
+          {userRole === "admin" && (
+            <button 
+              onClick={() => setShowEditModal(true)} 
+              className="bg-gray-700 text-white px-4 py-2 rounded-md flex items-center"
+            >
+              <FaEdit className="mr-2" /> Edit Debtor
+            </button>
+          )}
+        </div>
 
-        {debtor ? (
-          <>
-            {/* Basic Debtor Information */}
-            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-              <h3 className="text-xl font-semibold">Basic Information</h3>
-              <p><strong>Name:</strong> {debtor.debtor_name}</p>
-              <p><strong>Client (Company):</strong> {debtor.client}</p>
-              <p><strong>Phone:</strong> {debtor.debtor_phone}</p>
-              <p><strong>Email:</strong> {debtor.debtor_email || "N/A"}</p>
-              <p><strong>Address:</strong> {debtor.address || "N/A"}</p>
-              <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
-              <p><strong>Created By:</strong> {debtor.created_by?.full_name || "Unknown"}</p>
-              <p><strong>Assigned Agent:</strong> {debtor.assigned_to?.full_name || "Unassigned"}</p>
-            </div>
+        {/* Debtor Basic Info */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Basic Information</h3>
+          <p><strong>Name:</strong> {debtor.debtor_name}</p>
+          <p><strong>Client:</strong> {debtor.client}</p>
+          <p><strong>Phone:</strong> {debtor.debtor_phone}</p>
+          <p><strong>Email:</strong> {debtor.debtor_email || "N/A"}</p>
+          <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
+        </div>
 
-            {/* Editable Follow-Up Section */}
-            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-              <h3 className="text-xl font-semibold">Follow-Up Details</h3>
-              <label className="block">Update Follow-Up Stage:</label>
-              <select
-                className="border p-2 rounded-md w-full mb-4"
-                value={dealStage}
-                onChange={(e) => setDealStage(e.target.value)}
-              >
-                {dealStages.map((stage) => (
-                  <option key={stage.value} value={stage.value}>
-                    {stage.label}
-                  </option>
+        {/* Follow-Up Section */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Follow-Up Details</h3>
+          <label className="block">Update Follow-Up Stage:</label>
+          <select 
+            className="border p-2 rounded-md w-full"
+            value={dealStage}
+            onChange={(e) => setDealStage(e.target.value)}
+          >
+            {dealStages.map((stage) => (
+              <option key={stage.value} value={stage.value}>
+                {stage.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="block">Next Follow-Up Date:</label>
+          <input 
+            className="border p-2 rounded-md w-full"
+            type="date"
+            value={nextFollowUp}
+            onChange={(e) => setNextFollowUp(e.target.value)}
+          />
+
+          <button onClick={updateDebtor} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-4">
+            Save Changes
+          </button>
+        </div>
+
+        {/* Admin Edit Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center">
+            <div className="bg-white p-6 rounded-lg w-[800px] max-h-[90vh] overflow-y-auto shadow-lg">
+              <h3 className="text-2xl font-semibold mb-4 text-gray-800">Edit Debtor</h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                {["debtor_name", "client", "debtor_phone", "debtor_email", "debt_amount", "next_followup_date", "product", "lead_interest", "branch_group", "deal_stage", "assigned_to"].map((field) => (
+                  <div key={field}>
+                    <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>
+                    <input 
+                      className="border p-2 rounded-md w-full"
+                      type="text"
+                      value={editedDebtor[field] || ""}
+                      onChange={(e) => setEditedDebtor({ ...editedDebtor, [field]: e.target.value })}
+                    />
+                  </div>
                 ))}
-              </select>
+              </div>
 
-              <label className="block">Next Follow-Up Date:</label>
-              <input
-                className="border p-2 rounded-md w-full mb-4"
-                type="date"
-                value={nextFollowUp}
-                onChange={(e) => setNextFollowUp(e.target.value)}
-              />
-
-              <label className="block">Notes:</label>
-              <textarea
-                className="border p-2 rounded-md w-full mb-4"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any follow-up notes..."
-              />
-
-              <button onClick={updateDebtor} className="bg-blue-600 text-white px-4 py-2 rounded-md">
+              <button onClick={updateDebtorDetails} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-6 w-full">
                 Save Changes
               </button>
             </div>
-          </>
-        ) : (
-          <p>Loading debtor details...</p>
+          </div>
         )}
-
-        {/* Follow-Up History */}
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <h3 className="text-xl font-semibold">Follow-Up History</h3>
-          {followUps.length === 0 ? (
-            <p className="text-gray-500">No follow-ups recorded.</p>
-          ) : (
-            <ul className="list-disc ml-6">
-              {followUps.map((f) => (
-                <li key={f.id}>
-                  <strong>{f.status}:</strong> {f.notes} ({new Date(f.follow_up_date).toDateString()})
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* Payment History */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold">Payment History</h3>
-          {payments.length === 0 ? (
-            <p className="text-gray-500">No payments recorded.</p>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-200">
-                  <th className="p-3 text-left">Amount</th>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">Proof</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p) => (
-                  <tr key={p.id} className="border-b">
-                    <td className="p-3">KES {p.amount.toLocaleString()}</td>
-                    <td className="p-3">{new Date(p.uploaded_at).toDateString()}</td>
-                    <td className="p-3">
-                      <a href={p.pop_url} target="_blank" className="text-blue-600 hover:underline">View PoP</a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
       </main>
     </div>
   );
