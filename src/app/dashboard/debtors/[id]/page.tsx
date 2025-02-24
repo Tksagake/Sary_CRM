@@ -13,7 +13,7 @@ export default function DebtorDetailsPage() {
   const [debtor, setDebtor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
-  const [agents, setAgents] = useState<any[]>([]); // State to store the list of agents
+  const [agents, setAgents] = useState<any[]>([]);
 
   // Follow-Up Fields
   const [dealStage, setDealStage] = useState("0");
@@ -24,7 +24,6 @@ export default function DebtorDetailsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editedDebtor, setEditedDebtor] = useState<any>({});
 
-  // ✅ Deal Stage Dropdown List (Restored)
   const dealStages = [
     { value: "0", label: "Select" },
     { value: "1", label: "Outsource Email" },
@@ -73,9 +72,14 @@ export default function DebtorDetailsPage() {
 
       const { data, error } = await supabase
         .from("debtors")
-        .select("*, assigned_to")
+        .select("*")
         .eq("id", id)
         .single();
+
+      if (error) {
+        router.push("/dashboard/debtors");
+        return;
+      }
 
       // Fetch the assigned agent's name separately
       if (data?.assigned_to) {
@@ -86,15 +90,8 @@ export default function DebtorDetailsPage() {
           .single();
 
         if (!agentError && agentData) {
-          data.assigned_to = agentData.full_name; // ✅ Replace ID with name
+          data.assigned_to = agentData.full_name; // Replace ID with name
         }
-      }
-
-      setDebtor(data);
-
-      if (error) {
-        router.push("/dashboard/debtors");
-        return;
       }
 
       setDebtor(data);
@@ -136,19 +133,31 @@ export default function DebtorDetailsPage() {
     if (!error) {
       alert("Debtor updated successfully!");
       setDebtor({ ...debtor, deal_stage: dealStage, next_followup_date: nextFollowUp });
+    } else {
+      alert("Error updating debtor: " + error.message);
     }
   }
 
   async function updateDebtorDetails() {
+    // Convert empty strings to null before saving
+    const updatedDebtor = { ...editedDebtor };
+    for (const key in updatedDebtor) {
+      if (updatedDebtor[key] === "") {
+        updatedDebtor[key] = null;
+      }
+    }
+
     const { error } = await supabase
       .from("debtors")
-      .update(editedDebtor)
+      .update(updatedDebtor)
       .eq("id", id);
 
     if (!error) {
       alert("Debtor details updated successfully!");
-      setDebtor(editedDebtor);
+      setDebtor(updatedDebtor);
       setShowEditModal(false);
+    } else {
+      alert("Error updating debtor details: " + error.message);
     }
   }
 
@@ -176,8 +185,14 @@ export default function DebtorDetailsPage() {
           <p><strong>Name:</strong> {debtor.debtor_name}</p>
           <p><strong>Client:</strong> {debtor.client}</p>
           <p><strong>Phone:</strong> {debtor.debtor_phone}</p>
+          <p><strong>Secondary Phone:</strong> {debtor.debtor_secondary_phone || "N/A"}</p>
           <p><strong>Email:</strong> {debtor.debtor_email || "N/A"}</p>
+          <p><strong>Address:</strong> {debtor.address || "N/A"}</p>
           <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
+          <p><strong>Job Title:</strong> {debtor.job_title || "N/A"}</p>
+          <p><strong>Tags:</strong> {debtor.tags || "N/A"}</p>
+          <p><strong>ID Number:</strong> {debtor.id_number || "N/A"}</p>
+          <p><strong>Assigned To:</strong> {debtor.assigned_to || "N/A"}</p>
         </div>
 
         {/* Follow-Up Section */}
@@ -204,6 +219,13 @@ export default function DebtorDetailsPage() {
             onChange={(e) => setNextFollowUp(e.target.value)}
           />
 
+          <label className="block">Notes:</label>
+          <textarea 
+            className="border p-2 rounded-md w-full"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+
           <button onClick={updateDebtor} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-4">
             Save Changes
           </button>
@@ -216,17 +238,19 @@ export default function DebtorDetailsPage() {
               <h3 className="text-2xl font-semibold mb-4 text-gray-800">Edit Debtor</h3>
 
               <div className="grid grid-cols-2 gap-4">
-                {["debtor_name", "client", "debtor_phone", "debtor_email", "debt_amount", "next_followup_date", "product", "lead_interest", "branch_group", "deal_stage"].map((field) => (
-                  <div key={field}>
-                    <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>
-                    <input 
-                      className="border p-2 rounded-md w-full"
-                      type="text"
-                      value={editedDebtor[field] || ""}
-                      onChange={(e) => setEditedDebtor({ ...editedDebtor, [field]: e.target.value })}
-                    />
-                  </div>
-                ))}
+                {Object.keys(debtor)
+                  .filter((field) => field !== "client_id") // Exclude client_id from the edit modal
+                  .map((field) => (
+                    <div key={field}>
+                      <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>
+                      <input 
+                        className="border p-2 rounded-md w-full"
+                        type="text"
+                        value={editedDebtor[field] || ""}
+                        onChange={(e) => setEditedDebtor({ ...editedDebtor, [field]: e.target.value })}
+                      />
+                    </div>
+                  ))}
                 <div>
                   <label className="block font-medium text-gray-700">Assigned To:</label>
                   <select 
@@ -244,9 +268,20 @@ export default function DebtorDetailsPage() {
                 </div>
               </div>
 
-              <button onClick={updateDebtorDetails} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-6 w-full">
-                Save Changes
-              </button>
+              <div className="flex justify-end gap-4 mt-6">
+                <button 
+                  onClick={() => setShowEditModal(false)} 
+                  className="bg-gray-500 text-white px-4 py-2 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={updateDebtorDetails} 
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         )}

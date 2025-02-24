@@ -14,21 +14,23 @@ export default function PaymentsPage() {
   useEffect(() => {
     async function fetchPayments() {
       const { data, error } = await supabase
-        .from("payments")
-        .select("id, debtor_id, agent_id, amount, pop_url, verified, uploaded_at, agent:users(full_name), debtor:debtors(debtor_name)")
-        .order("uploaded_at", { ascending: false });
+  .from("payments")
+  .select("id, debtor_id, amount, pop_url, verified, uploaded_at, debtor:debtors(debtor_name)")  // Fetch debtor name directly
+  .order("uploaded_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching payments:", error.message);
-      } else {
-        setPayments(data);
-      }
+if (error) {
+  console.error("Error fetching payments:", error.message);
+} else {
+  setPayments(data);
+}
+
+
       setLoading(false);
     }
-
+  
     fetchPayments();
   }, [supabase]);
-
+    
   return (
     <div className="flex min-h-screen w-full">
       <Navbar />
