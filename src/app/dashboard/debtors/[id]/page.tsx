@@ -13,6 +13,7 @@ export default function DebtorDetailsPage() {
   const [debtor, setDebtor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
+  const [agents, setAgents] = useState<any[]>([]); // State to store the list of agents
 
   // Follow-Up Fields
   const [dealStage, setDealStage] = useState("0");
@@ -72,9 +73,24 @@ export default function DebtorDetailsPage() {
 
       const { data, error } = await supabase
         .from("debtors")
-        .select("*")
+        .select("*, assigned_to")
         .eq("id", id)
         .single();
+
+      // Fetch the assigned agent's name separately
+      if (data?.assigned_to) {
+        const { data: agentData, error: agentError } = await supabase
+          .from("users")
+          .select("full_name")
+          .eq("id", data.assigned_to)
+          .single();
+
+        if (!agentError && agentData) {
+          data.assigned_to = agentData.full_name; // ✅ Replace ID with name
+        }
+      }
+
+      setDebtor(data);
 
       if (error) {
         router.push("/dashboard/debtors");
@@ -90,6 +106,21 @@ export default function DebtorDetailsPage() {
 
     fetchData();
   }, [supabase, id, router]);
+
+  useEffect(() => {
+    async function fetchAgents() {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .eq("role", "agent");
+
+      if (!error) {
+        setAgents(data);
+      }
+    }
+
+    fetchAgents();
+  }, [supabase]);
 
   async function updateDebtor() {
     const { error } = await supabase
@@ -185,7 +216,7 @@ export default function DebtorDetailsPage() {
               <h3 className="text-2xl font-semibold mb-4 text-gray-800">Edit Debtor</h3>
 
               <div className="grid grid-cols-2 gap-4">
-                {["debtor_name", "client", "debtor_phone", "debtor_email", "debt_amount", "next_followup_date", "product", "lead_interest", "branch_group", "deal_stage", "assigned_to"].map((field) => (
+                {["debtor_name", "client", "debtor_phone", "debtor_email", "debt_amount", "next_followup_date", "product", "lead_interest", "branch_group", "deal_stage"].map((field) => (
                   <div key={field}>
                     <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>
                     <input 
@@ -196,6 +227,21 @@ export default function DebtorDetailsPage() {
                     />
                   </div>
                 ))}
+                <div>
+                  <label className="block font-medium text-gray-700">Assigned To:</label>
+                  <select 
+                    className="border p-2 rounded-md w-full"
+                    value={editedDebtor.assigned_to || ""}
+                    onChange={(e) => setEditedDebtor({ ...editedDebtor, assigned_to: e.target.value })}
+                  >
+                    <option value="">Select an agent</option>
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <button onClick={updateDebtorDetails} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-6 w-full">
