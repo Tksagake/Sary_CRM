@@ -5,55 +5,79 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
-export default function Page() {
+export default function PaymentsPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
-  const [userRole, setUserRole] = useState<"admin" | "agent" | null>(null);
-  const [userName, setUserName] = useState<string | null>(null);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchUserData() {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        router.push("/login");
-        return;
-      }
-
+    async function fetchPayments() {
       const { data, error } = await supabase
-        .from("users")
-        .select("role, full_name")
-        .eq("id", user.id)
-        .single();
+        .from("payments")
+        .select("id, debtor_id, agent_id, amount, pop_url, verified, uploaded_at, agent:users(full_name), debtor:debtors(debtor_name)")
+        .order("uploaded_at", { ascending: false });
 
-      if (error || !data) {
-        console.error("Error fetching user data:", error?.message || error);
-        router.push("/login");
+      if (error) {
+        console.error("Error fetching payments:", error.message);
       } else {
-        setUserRole(data.role);
-        setUserName(data.full_name);
+        setPayments(data);
       }
       setLoading(false);
     }
 
-    fetchUserData();
-  }, [supabase, router]);
-
-  if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
+    fetchPayments();
+  }, [supabase]);
 
   return (
     <div className="flex min-h-screen w-full">
       <Navbar />
-
       <main className="ml-64 flex-1 p-8">
-        <h1 className="text-3xl font-bold text-gray-800">
-          📍 Page: {window.location.pathname}
-        </h1>
-        <p className="text-lg text-gray-600">
-          Welcome, {userName || "User"} (Role: {userRole ? userRole.toUpperCase() : "Loading..."})
-        </p>
-        <p className="text-gray-500">This is a placeholder for testing routing.</p>
+        <h2 className="text-3xl font-bold text-gray-800 mb-6">Payment Tracking</h2>
+
+        {loading ? (
+          <p className="text-center text-lg">Loading payments...</p>
+        ) : payments.length === 0 ? (
+          <p className="text-center text-lg text-gray-500">No payments found.</p>
+        ) : (
+          <table className="w-full bg-white shadow-md rounded-lg overflow-hidden">
+            <thead className="bg-blue-900 text-white">
+              <tr>
+                <th className="p-4 text-left">Debtor Name</th>
+                <th className="p-4 text-left">Agent</th>
+                <th className="p-4 text-left">Amount</th>
+                <th className="p-4 text-left">Uploaded At</th>
+                <th className="p-4 text-left">Status</th>
+                <th className="p-4 text-left">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((payment) => (
+                <tr key={payment.id} className="border-b hover:bg-gray-100 cursor-pointer">
+                  <td className="p-4">{payment.debtor?.debtor_name || "Unknown"}</td>
+                  <td className="p-4">{payment.agent?.full_name || "Unassigned"}</td>
+                  <td className="p-4">KES {payment.amount.toLocaleString()}</td>
+                  <td className="p-4">{new Date(payment.uploaded_at).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    {payment.verified ? (
+                      <span className="text-green-600 font-bold">✅ Verified</span>
+                    ) : (
+                      <span className="text-yellow-600 font-bold">⏳ Pending</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    <button
+                      onClick={() => router.push(`/dashboard/payments/${payment.id}`)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md"
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </main>
     </div>
   );

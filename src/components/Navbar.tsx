@@ -52,12 +52,19 @@ export default function Navbar({ handleLogout }: NavbarProps) {
           <>
             <DropdownMenu label="Debtors" icon={<FaUserFriends />}>
               <NavItem link="/dashboard/debtors" label="View Debtors" />
-              <NavItem link="/dashboard/debtors/import" label="Import Debtors" />
+              {/* Only show "Import Debtors" for Admins */}
+              {userRole === "admin" && (
+                <NavItem link="/dashboard/debtors/import" label="Import Debtors" />
+              )}
               <NavItem link="/dashboard/debtors/follow-ups" label="Follow-Ups" />
             </DropdownMenu>
             <DropdownMenu label="Payments" icon={<FaMoneyBill />}>
               <NavItem link="/dashboard/payments" label="Payment Tracking" />
               <NavItem link="/dashboard/payments/approve" label="Approve PoP" />
+              {/* Show "Upload PoP" for Admins and Agents */}
+              {(userRole === "admin" || userRole === "agent") && (
+                <NavItem link="/dashboard/payments/upload" label="Upload PoP" />
+              )}
             </DropdownMenu>
           </>
         )}
