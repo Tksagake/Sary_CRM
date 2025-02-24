@@ -15,9 +15,40 @@ export default function DebtorDetailsPage() {
   const [loading, setLoading] = useState(true);
 
   // Editable Fields
-  const [dealStage, setDealStage] = useState("");
+  const [dealStage, setDealStage] = useState("0"); // Default to "Select"
   const [nextFollowUp, setNextFollowUp] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Define the deal stages as an array of objects
+  const dealStages = [
+    { value: "0", label: "Select" },
+    { value: "1", label: "Outsource Email" },
+    { value: "13", label: "No Contact Provided" },
+    { value: "27", label: "On Hold" },
+    { value: "16", label: "Requesting more Information" },
+    { value: "22", label: "Invalid Email" },
+    { value: "21", label: "Invalid Number" },
+    { value: "15", label: "Wrong Number" },
+    { value: "2", label: "Introduction Call" },
+    { value: "19", label: "Out of Service" },
+    { value: "18", label: "Not in Service" },
+    { value: "24", label: "Phone Switched Off" },
+    { value: "17", label: "Calls Dropped" },
+    { value: "25", label: "Follow Up-Email" },
+    { value: "3", label: "Ringing No Response" },
+    { value: "20", label: "Requested Call Back" },
+    { value: "4", label: "Field Visit Meeting" },
+    { value: "5", label: "Negotiation in progress" },
+    { value: "23", label: "PTP" },
+    { value: "7", label: "Scheduled Payment" },
+    { value: "8", label: "One-Off Payment" },
+    { value: "9", label: "Payment Confirmed by Client" },
+    { value: "10", label: "Debt Settled" },
+    { value: "14", label: "Non-Committal" },
+    { value: "11", label: "Disputing" },
+    { value: "12", label: "Legal" },
+    { value: "26", label: "Not Interested - BD" },
+  ];
 
   useEffect(() => {
     async function fetchDebtor() {
@@ -32,7 +63,7 @@ export default function DebtorDetailsPage() {
         router.push("/dashboard/debtors");
       } else {
         setDebtor(data);
-        setDealStage(data.deal_stage || "Pending");
+        setDealStage(data.deal_stage || "0"); // Default to "Select"
         setNextFollowUp(data.next_followup_date || "");
       }
     }
@@ -66,6 +97,12 @@ export default function DebtorDetailsPage() {
   }, [supabase, id, router]);
 
   async function updateDebtor() {
+    // Prevent saving if "Select" is chosen
+    if (dealStage === "0") {
+      alert("Please select a valid deal stage.");
+      return;
+    }
+
     const { error } = await supabase
       .from("debtors")
       .update({
@@ -78,6 +115,7 @@ export default function DebtorDetailsPage() {
 
     if (error) {
       console.error("Error updating debtor:", error.message);
+      alert(`Error updating debtor: ${error.message}`);
       return;
     }
 
@@ -117,10 +155,11 @@ export default function DebtorDetailsPage() {
                 value={dealStage}
                 onChange={(e) => setDealStage(e.target.value)}
               >
-                <option value="Pending">Pending</option>
-                <option value="Follow-Up Done">Follow-Up Done</option>
-                <option value="Promise to Pay">Promise to Pay</option>
-                <option value="Resolved">Resolved</option>
+                {dealStages.map((stage) => (
+                  <option key={stage.value} value={stage.value}>
+                    {stage.label}
+                  </option>
+                ))}
               </select>
 
               <label className="block">Next Follow-Up Date:</label>

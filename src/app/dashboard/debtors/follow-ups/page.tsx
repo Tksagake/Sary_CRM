@@ -12,6 +12,43 @@ export default function FollowUpsPage() {
   const [overdueFollowUps, setOverdueFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Define the deal stages as an array of objects
+  const dealStages = [
+    { value: "0", label: "Select" },
+    { value: "1", label: "Outsource Email" },
+    { value: "13", label: "No Contact Provided" },
+    { value: "27", label: "On Hold" },
+    { value: "16", label: "Requesting more Information" },
+    { value: "22", label: "Invalid Email" },
+    { value: "21", label: "Invalid Number" },
+    { value: "15", label: "Wrong Number" },
+    { value: "2", label: "Introduction Call" },
+    { value: "19", label: "Out of Service" },
+    { value: "18", label: "Not in Service" },
+    { value: "24", label: "Phone Switched Off" },
+    { value: "17", label: "Calls Dropped" },
+    { value: "25", label: "Follow Up-Email" },
+    { value: "3", label: "Ringing No Response" },
+    { value: "20", label: "Requested Call Back" },
+    { value: "4", label: "Field Visit Meeting" },
+    { value: "5", label: "Negotiation in progress" },
+    { value: "23", label: "PTP" },
+    { value: "7", label: "Scheduled Payment" },
+    { value: "8", label: "One-Off Payment" },
+    { value: "9", label: "Payment Confirmed by Client" },
+    { value: "10", label: "Debt Settled" },
+    { value: "14", label: "Non-Committal" },
+    { value: "11", label: "Disputing" },
+    { value: "12", label: "Legal" },
+    { value: "26", label: "Not Interested - BD" },
+  ];
+
+  // Function to get the label for a deal stage value
+  const getDealStageLabel = (value) => {
+    const stage = dealStages.find((stage) => stage.value === value);
+    return stage ? stage.label : "Pending";
+  };
+
   useEffect(() => {
     async function fetchFollowUps() {
       const today = new Date().toISOString().split("T")[0];
@@ -19,7 +56,7 @@ export default function FollowUpsPage() {
       // Fetch debtors whose follow-up date is today or overdue
       const { data, error } = await supabase
         .from("debtors")
-        .select("id, debtor_name, client, debtor_phone, debt_amount, next_followup_date, deal_stage, assigned_to (full_name)")
+        .select("id, debtor_name, client, debtor_phone, debt_amount, next_followup_date, deal_stage, collection_update, assigned_to (full_name)")
         .lte("next_followup_date", today)
         .order("next_followup_date", { ascending: true });
 
@@ -50,10 +87,21 @@ export default function FollowUpsPage() {
         ) : (
           <>
             {/* Section: Today's Follow-Ups */}
-            <FollowUpTable title="Today's Follow-Ups" data={todayFollowUps} router={router} highlight />
+            <FollowUpTable
+              title="Today's Follow-Ups"
+              data={todayFollowUps}
+              router={router}
+              getDealStageLabel={getDealStageLabel}
+              highlight
+            />
 
             {/* Section: Overdue Follow-Ups */}
-            <FollowUpTable title="Overdue Follow-Ups" data={overdueFollowUps} router={router} />
+            <FollowUpTable
+              title="Overdue Follow-Ups"
+              data={overdueFollowUps}
+              router={router}
+              getDealStageLabel={getDealStageLabel}
+            />
           </>
         )}
       </main>
@@ -62,7 +110,7 @@ export default function FollowUpsPage() {
 }
 
 // Reusable Table Component
-function FollowUpTable({ title, data, router, highlight = false }) {
+function FollowUpTable({ title, data, router, getDealStageLabel, highlight = false }) {
   return (
     <div className="mb-8">
       <h3 className={`text-xl font-semibold mb-3 ${highlight ? "text-red-600" : "text-gray-800"}`}>
@@ -81,12 +129,15 @@ function FollowUpTable({ title, data, router, highlight = false }) {
               <th className="p-4 text-left">Debt Amount</th>
               <th className="p-4 text-left">Follow-Up Date</th>
               <th className="p-4 text-left">Deal Stage</th>
+              <th className="p-4 text-left">Notes</th>
               <th className="p-4 text-left">Assigned Agent</th>
             </tr>
           </thead>
           <tbody>
             {data.map((debtor) => (
-              <tr key={debtor.id} className="border-b hover:bg-gray-100 cursor-pointer"
+              <tr
+                key={debtor.id}
+                className="border-b hover:bg-gray-100 cursor-pointer"
                 onClick={() => router.push(`/dashboard/debtors/${debtor.id}`)}
               >
                 <td className="p-4 text-blue-600 hover:underline">{debtor.debtor_name}</td>
@@ -94,7 +145,8 @@ function FollowUpTable({ title, data, router, highlight = false }) {
                 <td className="p-4">{debtor.debtor_phone}</td>
                 <td className="p-4">KES {debtor.debt_amount.toLocaleString()}</td>
                 <td className="p-4">{debtor.next_followup_date}</td>
-                <td className="p-4">{debtor.deal_stage || "Pending"}</td>
+                <td className="p-4">{getDealStageLabel(debtor.deal_stage)}</td>
+                <td className="p-4">{debtor.collection_update || "N/A"}</td>
                 <td className="p-4">{debtor.assigned_to?.full_name || "Unassigned"}</td>
               </tr>
             ))}
