@@ -14,23 +14,24 @@ export default function PaymentsPage() {
   useEffect(() => {
     async function fetchPayments() {
       const { data, error } = await supabase
-  .from("payments")
-  .select("id, debtor_id, amount, pop_url, verified, uploaded_at, debtor:debtors(debtor_name)")  // Fetch debtor name directly
-  .order("uploaded_at", { ascending: false });
+        .from("payments")
+        .select(
+          "id, debtor_id, amount, pop_url, verified, uploaded_at, debtor:debtors(debtor_name), clients:debtors(client)" // Different aliases for debtor and client
+        )
+        .order("uploaded_at", { ascending: false });
 
-if (error) {
-  console.error("Error fetching payments:", error.message);
-} else {
-  setPayments(data);
-}
-
+      if (error) {
+        console.error("Error fetching payments:", error.message);
+      } else {
+        setPayments(data);
+      }
 
       setLoading(false);
     }
-  
+
     fetchPayments();
   }, [supabase]);
-    
+
   return (
     <div className="flex min-h-screen w-full">
       <Navbar />
@@ -46,7 +47,7 @@ if (error) {
             <thead className="bg-blue-900 text-white">
               <tr>
                 <th className="p-4 text-left">Debtor Name</th>
-                <th className="p-4 text-left">Agent</th>
+                <th className="p-4 text-left">Client</th> {/* New row for Client */}
                 <th className="p-4 text-left">Amount</th>
                 <th className="p-4 text-left">Uploaded At</th>
                 <th className="p-4 text-left">Status</th>
@@ -56,8 +57,8 @@ if (error) {
             <tbody>
               {payments.map((payment) => (
                 <tr key={payment.id} className="border-b hover:bg-gray-100 cursor-pointer">
-                  <td className="p-4">{payment.debtor?.debtor_name || "Unknown"}</td>
-                  <td className="p-4">{payment.agent?.full_name || "Unassigned"}</td>
+                  <td className="p-4">{payment.debtor?.debtor_name || "Unknown"}</td> {/* Debtor Name */}
+                  <td className="p-4">{payment.clients?.client || "Unknown"}</td> {/* Client Name from debtors table */}
                   <td className="p-4">KES {payment.amount.toLocaleString()}</td>
                   <td className="p-4">{new Date(payment.uploaded_at).toLocaleDateString()}</td>
                   <td className="p-4">
