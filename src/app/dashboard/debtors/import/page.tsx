@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Navbar from "@/components/Navbar";
 
@@ -25,6 +25,29 @@ export default function ImportDebtorsPage() {
   const [debtorEmail, setDebtorEmail] = useState("");
   const [debtAmount, setDebtAmount] = useState("");
   const [idNumber, setIdNumber] = useState("");
+
+  // Agent Selection
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>(""); // For manual insertion
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([]); // For bulk import
+
+  // Fetch agents from the database
+  useEffect(() => {
+    const fetchAgents = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .eq("role", "agent"); // Filter only agents
+    
+      if (error) {
+        console.error("Error fetching agents:", error.message);
+      } else {
+        setAgents(data.map(agent => ({ id: agent.id, name: agent.full_name })));
+      }
+    };
+        
+    fetchAgents();
+  }, [supabase]);
 
   // Handles CSV file selection
   const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,6 +81,13 @@ export default function ImportDebtorsPage() {
         .map((row) => {
           const cols = row.split(",");
           if (cols.length < 3) return null; // Skip invalid rows
+
+          // Randomly assign an agent if selected
+          const assignedTo =
+            selectedAgents.length > 0
+              ? selectedAgents[Math.floor(Math.random() * selectedAgents.length)]
+              : agents[Math.floor(Math.random() * agents.length)]?.id || null;
+
           return {
             debtor_name: cols[0].trim(),
             debtor_phone: cols[1].trim(),
@@ -69,6 +99,7 @@ export default function ImportDebtorsPage() {
             product,
             lead_interest: leadInterest || null,
             next_followup_date: new Date().toISOString().split("T")[0], // Today's date
+            assigned_to: assignedTo,
           };
         })
         .filter(Boolean); // Remove null values
@@ -100,6 +131,10 @@ export default function ImportDebtorsPage() {
       return;
     }
 
+    // Randomly assign an agent if none is selected
+    const assignedTo =
+      selectedAgent || agents[Math.floor(Math.random() * agents.length)]?.id || null;
+
     const { error } = await supabase.from("debtors").insert([
       {
         debtor_name: debtorName,
@@ -113,6 +148,7 @@ export default function ImportDebtorsPage() {
         product,
         lead_interest: leadInterest || null,
         next_followup_date: new Date().toISOString().split("T")[0], // Today's date
+        assigned_to: assignedTo,
       },
     ]);
 
@@ -126,6 +162,7 @@ export default function ImportDebtorsPage() {
       setDebtorEmail("");
       setDebtAmount("");
       setIdNumber("");
+      setSelectedAgent("");
     }
   };
 
@@ -221,6 +258,18 @@ export default function ImportDebtorsPage() {
               onChange={(e) => setLeadInterest(e.target.value)}
               className="p-2 border rounded-md w-full"
             />
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="p-2 border rounded-md w-full"
+            >
+              <option value="">Select Agent (Optional)</option>
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
           </div>
           <button
             onClick={createDebtor}
@@ -241,7 +290,7 @@ export default function ImportDebtorsPage() {
         {/* CSV Upload Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center">
-            <div className="bg-white p-6 rounded-lg w-96">
+            <div className="bg-white p-6 rounded-lg w-[800px] max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">Upload CSV</h3>
 
               {/* Instructions */}
@@ -265,7 +314,7 @@ export default function ImportDebtorsPage() {
               />
 
               {/* Form for Global Fields */}
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <input
                   type="text"
                   placeholder="Client"
@@ -303,6 +352,33 @@ export default function ImportDebtorsPage() {
                   onChange={(e) => setLeadInterest(e.target.value)}
                   className="p-2 border rounded-md w-full"
                 />
+              </div>
+
+              {/* Agent Selection for Bulk Import */}
+              <div className="mb-4">
+                <h4 className="font-semibold mb-2">Assign Agents (Optional)</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {agents.map((agent) => (
+                    <label key={agent.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        value={agent.id}
+                        checked={selectedAgents.includes(agent.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAgents([...selectedAgents, agent.id]);
+                          } else {
+                            setSelectedAgents(
+                              selectedAgents.filter((id) => id !== agent.id)
+                            );
+                          }
+                        }}
+                        className="mr-2"
+                      />
+                      {agent.name}
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {/* Upload Button */}
