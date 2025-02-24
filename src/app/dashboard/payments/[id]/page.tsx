@@ -16,39 +16,45 @@ export default function PaymentDetailsPage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Check if the user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login");
         return;
       }
 
+      // Get user role (admin or agent)
       const { data: userData } = await supabase
         .from("users")
         .select("role")
         .eq("id", user.id)
         .single();
-
       setUserRole(userData?.role);
 
+      // Fetch the payment details for this specific payment ID
       const { data, error } = await supabase
         .from("payments")
-        .select("*, agent:users(full_name), debtor:debtors(debtor_name)")
+        .select(`
+          *,
+          debtor:debtors(debtor_name)  -- Relationship for debtor (client)
+        `)
         .eq("id", id)
         .single();
 
-      if (error) {
-        console.error("Error fetching payment:", error.message);
-        router.push("/dashboard/payments");
-      } else {
-        setPayment(data);
+      if (error || !data) {
+        console.error("Error fetching payment:", error?.message || "Payment not found.");
+        router.push("/dashboard/payments"); // Redirect if there's an error or no payment found
+        return; // Stop further processing if no data or error occurs
       }
 
+      setPayment(data);
       setLoading(false);
     }
 
     fetchData();
   }, [supabase, id, router]);
 
+  // Approve the payment
   async function approvePayment() {
     const { error } = await supabase.from("payments").update({ verified: true }).eq("id", id);
     if (!error) {
@@ -57,6 +63,7 @@ export default function PaymentDetailsPage() {
     }
   }
 
+  // Upload a new PoP (Proof of Payment)
   async function uploadNewPoP() {
     if (!newPoP) return;
 
@@ -93,8 +100,7 @@ export default function PaymentDetailsPage() {
 
         {payment ? (
           <>
-            <p><strong>Debtor Name:</strong> {payment.debtor?.debtor_name || "Unknown"}</p>
-            <p><strong>Agent:</strong> {payment.agent?.full_name || "Unassigned"}</p>
+            <p><strong>Client Name:</strong> {payment.debtor?.debtor_name || "Unknown"}</p>
             <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
             <p><strong>Status:</strong> {payment.verified ? "✅ Verified" : "⏳ Pending"}</p>
 
