@@ -42,7 +42,7 @@ export default function DebtorsPage() {
       setUserRole(userData.role);
       setUserId(userData.id);
 
-      // Fetch debtors & JOIN users table to get assigned agent's name
+      // Fetch debtors
       let query = supabase
         .from("debtors")
         .select("*, users:assigned_to(full_name)");
@@ -58,8 +58,34 @@ export default function DebtorsPage() {
       if (debtorsError) {
         console.error("Error fetching debtors:", debtorsError.message);
       } else {
-        setDebtors(debtorsData);
-        setFilteredDebtors(debtorsData);
+        // Fetch payments for each debtor
+        const debtorsWithPayments = await Promise.all(
+          debtorsData.map(async (debtor) => {
+            const { data: paymentsData, error: paymentsError } = await supabase
+              .from("payments")
+              .select("amount")
+              .eq("debtor_id", debtor.id);
+
+            if (paymentsError) {
+              console.error("Error fetching payments:", paymentsError.message);
+              return {
+                ...debtor,
+                total_paid: 0,
+                balance_due: debtor.debt_amount,
+              };
+            }
+
+            const total_paid = paymentsData.reduce((sum, p) => sum + p.amount, 0);
+            return {
+              ...debtor,
+              total_paid,
+              balance_due: debtor.debt_amount - total_paid,
+            };
+          })
+        );
+
+        setDebtors(debtorsWithPayments);
+        setFilteredDebtors(debtorsWithPayments);
       }
 
       setLoading(false);
@@ -190,7 +216,9 @@ export default function DebtorsPage() {
                 <th className="px-4 py-2 border">Debtor Name</th>
                 <th className="px-4 py-2 border">Client (Company)</th>
                 <th className="px-4 py-2 border">Phone</th>
-                <th className="px-4 py-2 border">Debt Amount</th>
+                <th className="px-4 py-2 border">Total Debt</th>
+                <th className="px-4 py-2 border">Total Paid</th>
+                <th className="px-4 py-2 border">Remaining Balance</th>
                 <th className="px-4 py-2 border">Next Follow-Up</th>
                 <th className="px-4 py-2 border">Assigned Agent</th>
                 {userRole === "admin" && <th className="px-4 py-2 border">Actions</th>}
@@ -215,6 +243,8 @@ export default function DebtorsPage() {
                   <td className="px-4 py-2 border">{debtor.client}</td>
                   <td className="px-4 py-2 border">{debtor.debtor_phone}</td>
                   <td className="px-4 py-2 border">KES {debtor.debt_amount.toLocaleString()}</td>
+                  <td className="px-4 py-2 border">KES {debtor.total_paid.toLocaleString()}</td>
+                  <td className="px-4 py-2 border">KES {debtor.balance_due.toLocaleString()}</td>
                   <td className="px-4 py-2 border">{debtor.next_followup_date}</td>
                   <td className="px-4 py-2 border">{debtor.users?.full_name || "Unassigned"}</td>
                   {userRole === "admin" && (

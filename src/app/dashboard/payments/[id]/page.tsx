@@ -36,7 +36,7 @@ export default function PaymentDetailsPage() {
         .from("payments")
         .select(`
           *,
-          debtor:debtors(debtor_name, debt_amount, id)  -- Ensure debtor id is included
+          debtor:debtors(debtor_name, id)  -- Ensure debtor id is included
         `)
         .eq("id", id)
         .single();
@@ -60,33 +60,13 @@ export default function PaymentDetailsPage() {
     fetchData();
   }, [supabase, id, router]);
 
-  // Approve the payment and reduce the debt
+  // Approve the payment without reducing the debt
   async function approvePayment() {
     if (!payment || !payment.debtor?.id) {
       console.error("Debtor ID is missing or payment is undefined");
       alert("Debtor ID is missing or payment is undefined");
       return;
     }
-
-    // Calculate the new debt amount by deducting the payment amount from the current debt
-    const newDebtAmount = payment.debtor?.debt_amount - payment.amount;
-
-    console.log("Old Debt Amount:", payment.debtor?.debt_amount);
-    console.log("Payment Amount:", payment.amount);
-    console.log("New Debt Amount:", newDebtAmount);
-
-    // Update the debtor's debt in the debtors table
-    const { error: updateDebtError } = await supabase
-      .from("debtors")
-      .update({ debt_amount: newDebtAmount })
-      .eq("id", payment.debtor?.id);
-
-    if (updateDebtError) {
-      console.error("Error updating debtor's debt:", updateDebtError.message);
-      return;
-    }
-
-    console.log("Debt updated successfully!");
 
     // Now update the payment record as verified
     const { error: approveError } = await supabase.from("payments").update({ verified: true }).eq("id", id);
@@ -95,7 +75,7 @@ export default function PaymentDetailsPage() {
       return;
     }
 
-    console.log("Payment approved! Debt amount reduced.");
+    console.log("Payment approved!");
 
     // Update payment state to reflect the change
     setPayment({ ...payment, verified: true });
