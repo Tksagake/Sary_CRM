@@ -166,7 +166,7 @@ export default function ReportsPage() {
 
       let yOffset = 50;
 
-      groupedData.forEach((debtor, debtorIndex) => {
+      groupedData.forEach((debtor) => {
         const initialYOffset = yOffset;
 
         // Add Basic Information
@@ -187,8 +187,8 @@ export default function ReportsPage() {
             doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, followUpYOffset + 5);
             doc.text(`Notes: ${followUp.notes}`, 10, followUpYOffset + 10);
             doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, followUpYOffset + 15);
+            yOffset = followUpYOffset + 20;
           });
-          yOffset = followUpYOffset + 20;
         } else {
           doc.text("No follow-up records available.", 10, initialYOffset + 50);
           yOffset = initialYOffset + 70;
@@ -203,8 +203,8 @@ export default function ReportsPage() {
             doc.text(`Proof of Payment: View`, 10, paymentYOffset + 5);
             doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, paymentYOffset + 10);
             doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, paymentYOffset + 15);
+            yOffset = paymentYOffset + 20;
           });
-          yOffset = paymentYOffset + 20;
         } else {
           doc.text("No payment records available.", 10, yOffset + 10);
           yOffset += 30;
