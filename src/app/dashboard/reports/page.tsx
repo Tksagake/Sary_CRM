@@ -173,7 +173,116 @@ export default function ReportsPage() {
     }
   };
 
-  
+ 
+
+const renderFollowUpHistory = (doc, debtor, yOffset) => {
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 128);
+  doc.text("Follow-Up History", 15, yOffset);
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  yOffset += 5;
+
+  if (debtor.followUpHistory.length > 0) {
+    debtor.followUpHistory.forEach((followUp, index) => {
+      const statusLabel = dealStages[followUp.status] || followUp.status;
+      doc.text(`- ${new Date(followUp.follow_up_date).toLocaleDateString()}: ${statusLabel}`, 15, yOffset + index * 6);
+    });
+    yOffset += debtor.followUpHistory.length * 6 + 5;
+  } else {
+    doc.text("No follow-up records available.", 15, yOffset);
+    yOffset += 10;
+  }
+  return yOffset;
+};
+
+const renderPaymentHistory = (doc, debtor, yOffset) => {
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 128);
+  doc.text("Payment History", 15, yOffset);
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  yOffset += 5;
+
+  if (debtor.paymentHistory.length > 0) {
+    debtor.paymentHistory.forEach((payment, index) => {
+      doc.text(`- KES ${payment.amount.toLocaleString()} | ${new Date(payment.uploaded_at).toLocaleDateString()}`, 15, yOffset + index * 6);
+    });
+    yOffset += debtor.paymentHistory.length * 6 + 5;
+  } else {
+    doc.text("No payment records available.", 15, yOffset);
+    yOffset += 10;
+  }
+  return yOffset;
+};
+
+const renderSpecialCases = (doc, debtor, yOffset, options) => {
+  if (options.followUpHistory) {
+    yOffset = renderFollowUpHistory(doc, debtor, yOffset);
+  }
+
+  if (options.paymentHistory) {
+    yOffset = renderPaymentHistory(doc, debtor, yOffset);
+  }
+
+  if (options.ptpLogs) {
+    yOffset = renderPtPLogs(doc, debtor, yOffset);
+  }
+
+  if (options.collectionUpdates) {
+    yOffset = renderCollectionUpdates(doc, debtor, yOffset);
+  }
+  return yOffset;
+};
+
+const renderPtPLogs = (doc, debtor, yOffset) => {
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 128);
+  doc.text("PtP Logs", 15, yOffset);
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  yOffset += 5;
+
+  if (debtor.ptpLogs && debtor.ptpLogs.length > 0) {
+    debtor.ptpLogs.forEach((ptp, index) => {
+      doc.text(`- KES ${ptp.amount.toLocaleString()} | ${new Date(ptp.ptp_date).toLocaleDateString()}`, 15, yOffset + index * 6);
+    });
+    yOffset += debtor.ptpLogs.length * 6 + 5;
+  } else {
+    doc.text("No PtP logs available.", 15, yOffset);
+    yOffset += 10;
+  }
+  return yOffset;
+};
+
+const renderCollectionUpdates = (doc, debtor, yOffset) => {
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 128);
+  doc.text("Collection Updates", 15, yOffset);
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  yOffset += 5;
+
+  if (debtor.collectionUpdates && debtor.collectionUpdates.length > 0) {
+    debtor.collectionUpdates.forEach((update, index) => {
+      doc.text(`- ${new Date(update.update_date).toLocaleDateString()}: ${update.collection_notes}`, 15, yOffset + index * 6);
+    });
+    yOffset += debtor.collectionUpdates.length * 6 + 5;
+  } else {
+    doc.text("No collection updates available.", 15, yOffset);
+    yOffset += 10;
+  }
+  return yOffset;
+};
+
+const renderFooter = (doc, timestamp) => {
+  doc.setFontSize(10);
+  doc.setTextColor(128, 128, 128);
+  doc.text("This is an official academic record of Sary Network International.", 15, doc.internal.pageSize.height - 20);
+  doc.text(`Timestamp: ${timestamp}`, 15, doc.internal.pageSize.height - 15);
+};
+
+      
 
   const toggleDebtorSelection = (debtorId: string) => {
     setSelectedDebtors((prevSelected) =>
