@@ -254,7 +254,7 @@ export default function ReportsPage() {
       signatureImg.src = "https://res.cloudinary.com/dylmsnibf/image/upload/v1738334298/IMG_20240616_123128-removebg-preview_th0ica.png";
       signatureImg.onload = function () {
         doc.addImage(signatureImg, "PNG", 15, doc.internal.pageSize.height - 40, 50, 20);
-        doc.save("report.pdf");
+        doc.save("Sary_report.pdf");
       };
     };
   
