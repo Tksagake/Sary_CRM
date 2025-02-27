@@ -146,86 +146,111 @@ export default function ReportsPage() {
     }
   };
 
-  // Download Report as PDF
   const downloadPDF = async () => {
     const doc = new jsPDF();
-
-    // Load the image from Cloudinary and add it to the PDF once it's fully loaded
+    doc.setFont("times"); // Set to Times New Roman for a professional look
+  
+    // Load the letterhead image
     const img = new Image();
-    img.src = 'https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg'; // Cloudinary URL
-    img.onload = function() {
-      doc.addImage(img, 'JPEG', 10, 10, 50, 30); // Adjust the position and size as needed
-
-      // Add Company Information
-      doc.setFontSize(14);
+    img.src = "https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg";
+    img.onload = function () {
+      doc.addImage(img, "JPEG", 15, 10, 40, 25); // Adjusted positioning & size for neatness
+  
+      // Company Information
+      doc.setFontSize(16);
+      doc.setTextColor(0, 0, 128);
       doc.text("Sary Network International", 70, 20);
+      
       doc.setFontSize(12);
-      doc.text("Your Company Address", 70, 25);
-      doc.text("Phone: +123 456 789", 70, 30);
-      doc.text("Email: info@sarynetwork.com", 70, 35);
-
-      let yOffset = 50;
-
-      groupedData.forEach((debtor) => {
-        const initialYOffset = yOffset;
-
-        // Add Basic Information
-        doc.setFontSize(12);
-        doc.text(`Basic Information - ${debtor.debtor_name}`, 10, initialYOffset);
-        doc.text(`Name: ${debtor.debtor_name}`, 10, initialYOffset + 10);
-        doc.text(`Client: ${debtor.client}`, 10, initialYOffset + 15);
-        doc.text(`Phone: ${debtor.debtor_phone}`, 10, initialYOffset + 20);
-        doc.text(`Email: ${debtor.debtor_email}`, 10, initialYOffset + 25);
-        doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 10, initialYOffset + 30);
-
-        // Add Follow-Up History
-        doc.text("Follow-Up History", 10, initialYOffset + 40);
+      doc.setTextColor(0, 0, 0);
+      doc.text("8th Fr, Western Heights, Westlands, Nairobi", 70, 27);
+      doc.text("Phone: +254700314522", 70, 34);
+      doc.text("Email: info@sni.co.ke", 70, 41);
+      doc.text("Nairobi, Kenya", 70, 48);
+  
+      // Report Title
+      doc.setFontSize(16);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont("times", "bold");
+      doc.text("Debtor Report", 15, 60);
+      doc.setFont("times", "normal");
+  
+      let yOffset = 70;
+  
+      groupedData.forEach((debtor, debtorIndex) => {
+        // Section Title
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 128);
+        doc.text(`Debtor ${debtorIndex + 1}: ${debtor.debtor_name}`, 15, yOffset);
+  
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Client: ${debtor.client}`, 15, yOffset + 10);
+        doc.text(`Phone: ${debtor.debtor_phone}`, 15, yOffset + 15);
+        doc.text(`Email: ${debtor.debtor_email}`, 15, yOffset + 20);
+        doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 15, yOffset + 25);
+  
+        yOffset += 35;
+  
+        // Follow-Up History Table
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 128);
+        doc.text("Follow-Up History", 15, yOffset);
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        yOffset += 5;
+  
         if (debtor.followUpHistory.length > 0) {
-          debtor.followUpHistory.forEach((followUp, followUpIndex) => {
-            const followUpYOffset = initialYOffset + 50 + followUpIndex * 20;
-            doc.text(`Status: ${followUp.status}`, 10, followUpYOffset);
-            doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, followUpYOffset + 5);
-            doc.text(`Notes: ${followUp.notes}`, 10, followUpYOffset + 10);
-            doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, followUpYOffset + 15);
-            yOffset = followUpYOffset + 20;
+          debtor.followUpHistory.forEach((followUp, index) => {
+            doc.text(`- ${new Date(followUp.follow_up_date).toLocaleDateString()}: ${followUp.status}`, 15, yOffset + index * 6);
           });
+          yOffset += debtor.followUpHistory.length * 6 + 5;
         } else {
-          doc.text("No follow-up records available.", 10, initialYOffset + 50);
-          yOffset = initialYOffset + 70;
+          doc.text("No follow-up records available.", 15, yOffset);
+          yOffset += 10;
         }
-
-        // Add Payment History
-        doc.text("Payment History", 10, yOffset);
+  
+        // Payment History Table
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 128);
+        doc.text("Payment History", 15, yOffset);
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        yOffset += 5;
+  
         if (debtor.paymentHistory.length > 0) {
-          debtor.paymentHistory.forEach((payment, paymentIndex) => {
-            const paymentYOffset = yOffset + 10 + paymentIndex * 20;
-            doc.text(`Amount: KES ${payment.amount.toLocaleString()}`, 10, paymentYOffset);
-            doc.text(`Proof of Payment: View`, 10, paymentYOffset + 5);
-            doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, paymentYOffset + 10);
-            doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, paymentYOffset + 15);
-            yOffset = paymentYOffset + 20;
+          debtor.paymentHistory.forEach((payment, index) => {
+            doc.text(`- KES ${payment.amount.toLocaleString()} | ${new Date(payment.uploaded_at).toLocaleDateString()}`, 15, yOffset + index * 6);
           });
+          yOffset += debtor.paymentHistory.length * 6 + 5;
         } else {
-          doc.text("No payment records available.", 10, yOffset + 10);
-          yOffset += 30;
+          doc.text("No payment records available.", 15, yOffset);
+          yOffset += 10;
         }
-
-        // Add space between debtors
-        yOffset += 20;
-        if (yOffset >= doc.internal.pageSize.height - 10) {
+  
+        yOffset += 15;
+        if (yOffset >= doc.internal.pageSize.height - 50) {
           doc.addPage();
-          yOffset = 10; // Reset Y offset for new page
+          yOffset = 20;
         }
       });
-
-      doc.save("report.pdf");
-    };
-
-    // Ensure the image is loaded before adding it to the PDF
-    img.onerror = function() {
-      alert("Failed to load the letterhead image.");
+  
+      // Footer & Signature
+      doc.setFontSize(10);
+      doc.setTextColor(128, 128, 128);
+      doc.text("This document is confidential and intended for the recipient only.", 15, doc.internal.pageSize.height - 20);
+      doc.text("If you are not the intended recipient, please notify the sender and delete this document.", 15, doc.internal.pageSize.height - 15);
+  
+      // Add Director's Signature
+      const signatureImg = new Image();
+      signatureImg.src = "https://res.cloudinary.com/dylmsnibf/image/upload/v1738334298/IMG_20240616_123128-removebg-preview_th0ica.png";
+      signatureImg.onload = function () {
+        doc.addImage(signatureImg, "PNG", 15, doc.internal.pageSize.height - 40, 50, 20);
+        doc.save("report.pdf");
+      };
     };
   };
+
 
   return (
     <div className="flex min-h-screen w-full">
