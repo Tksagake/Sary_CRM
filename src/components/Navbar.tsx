@@ -71,7 +71,11 @@ export default function Navbar({ handleLogout }: NavbarProps) {
 
         {/* Reports Menu - All Users, Same Page */}
         <DropdownMenu label="Reports" icon={<FaFileAlt />}>
-          <NavItem link="/dashboard/reports/monthly" label="Reports" />
+          <NavItem link="/dashboard/reports" label="Reports" />
+          <NavItem link="/dashboard/reports/monthly" label="Monthly Reports" />
+          {userRole === "admin" && (
+            <NavItem link="/dashboard/reports/performance" label="Agent Performance" />
+          )}
         </DropdownMenu>
 
         {/* Admin & Agent Features */}
