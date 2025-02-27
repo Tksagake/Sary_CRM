@@ -148,34 +148,38 @@ export default function ReportsPage() {
 
   const downloadPDF = async () => {
     const doc = new jsPDF();
-    doc.setFont("times"); // Set to Times New Roman for a professional look
+    const currentDate = new Date().toLocaleDateString();
   
-    // Load the letterhead image
+    // Load the letterhead image from Cloudinary and add it to the PDF once it's fully loaded
     const img = new Image();
-    img.src = "https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg";
-    img.onload = function () {
-      doc.addImage(img, "JPEG", 15, 10, 40, 25); // Adjusted positioning & size for neatness
+    img.src = 'https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg'; // Cloudinary URL
+    img.onload = function() {
+      doc.addImage(img, 'JPEG', 10, 10, 50, 30); // Adjust the position and size as needed
   
-      // Company Information
-      doc.setFontSize(16);
-      doc.setTextColor(0, 0, 128);
+      // Add Company Information
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 128); // Dark blue color
       doc.text("Sary Network International", 70, 20);
-      
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text("8th Fr, Western Heights, Westlands, Nairobi", 70, 27);
-      doc.text("Phone: +254700314522", 70, 34);
-      doc.text("Email: info@sni.co.ke", 70, 41);
-      doc.text("Nairobi, Kenya", 70, 48);
+      doc.setFontSize(8);
+      doc.setTextColor(0, 0, 0); // Black color
+      doc.text("8th Fr, Western Heights, Westlands, Nairobi", 70, 25);
+      doc.text("Phone: +254700314522", 70, 30);
+      doc.text("Email: info@sni.co.ke", 70, 35);
+      doc.text("Nairobi, Kenya", 70, 40);
   
-      // Report Title
-      doc.setFontSize(16);
-      doc.setTextColor(0, 0, 0);
+      // Add Report Title
+      doc.setFontSize(18);
+      doc.setTextColor(0, 0, 0); // Black color
       doc.setFont("times", "bold");
-      doc.text("Debtor Report", 15, 60);
+      doc.text("DEBTOR REPORT", doc.internal.pageSize.width / 2, 60, { align: "center" });
       doc.setFont("times", "normal");
   
-      let yOffset = 70;
+      // Add Date of Report Generation
+      doc.setFontSize(10);
+      doc.setTextColor(128, 128, 128); // Gray color
+      doc.text(`Date: ${currentDate}`, doc.internal.pageSize.width - 50, 70);
+  
+      let yOffset = 80;
   
       groupedData.forEach((debtor, debtorIndex) => {
         // Section Title
@@ -228,7 +232,11 @@ export default function ReportsPage() {
           yOffset += 10;
         }
   
+        // Add horizontal break line
+        doc.setDrawColor(0, 0, 0);
+        doc.line(10, yOffset + 5, doc.internal.pageSize.width - 10, yOffset + 5);
         yOffset += 15;
+  
         if (yOffset >= doc.internal.pageSize.height - 50) {
           doc.addPage();
           yOffset = 20;
@@ -249,8 +257,13 @@ export default function ReportsPage() {
         doc.save("report.pdf");
       };
     };
+  
+    // Ensure the image is loaded before adding it to the PDF
+    img.onerror = function() {
+      alert("Failed to load the letterhead image.");
+    };
   };
-
+  
 
   return (
     <div className="flex min-h-screen w-full">
