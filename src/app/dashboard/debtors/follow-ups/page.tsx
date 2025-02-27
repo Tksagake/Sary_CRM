@@ -94,9 +94,35 @@ export default function FollowUpsPage() {
       if (error) {
         console.error("Error fetching follow-ups:", error.message);
       } else {
+        // Fetch payments for each debtor
+        const debtorsWithPayments = await Promise.all(
+          data.map(async (debtor) => {
+            const { data: paymentsData, error: paymentsError } = await supabase
+              .from("payments")
+              .select("amount")
+              .eq("debtor_id", debtor.id);
+
+            if (paymentsError) {
+              console.error("Error fetching payments:", paymentsError.message);
+              return {
+                ...debtor,
+                total_paid: 0,
+                balance_due: debtor.debt_amount,
+              };
+            }
+
+            const total_paid = paymentsData.reduce((sum, p) => sum + p.amount, 0);
+            return {
+              ...debtor,
+              total_paid,
+              balance_due: debtor.debt_amount - total_paid,
+            };
+          })
+        );
+
         // Separate into today's and overdue follow-ups
-        const todayList = data.filter((d) => d.next_followup_date === today);
-        const overdueList = data.filter((d) => d.next_followup_date < today);
+        const todayList = debtorsWithPayments.filter((d) => d.next_followup_date === today);
+        const overdueList = debtorsWithPayments.filter((d) => d.next_followup_date < today);
 
         setTodayFollowUps(todayList);
         setOverdueFollowUps(overdueList);
@@ -157,7 +183,9 @@ function FollowUpTable({ title, data, router, getDealStageLabel, highlight = fal
               <th className="p-4 text-left">Debtor Name</th>
               <th className="p-4 text-left">Client (Company)</th>
               <th className="p-4 text-left">Phone</th>
-              <th className="p-4 text-left">Debt Amount</th>
+              <th className="p-4 text-left">Total Debt</th>
+              <th className="p-4 text-left">Total Paid</th>
+              <th className="p-4 text-left">Remaining Balance</th>
               <th className="p-4 text-left">Follow-Up Date</th>
               <th className="p-4 text-left">Deal Stage</th>
               <th className="p-4 text-left">Notes</th>
@@ -175,6 +203,8 @@ function FollowUpTable({ title, data, router, getDealStageLabel, highlight = fal
                 <td className="p-4">{debtor.client}</td>
                 <td className="p-4">{debtor.debtor_phone}</td>
                 <td className="p-4">KES {debtor.debt_amount.toLocaleString()}</td>
+                <td className="p-4">KES {debtor.total_paid.toLocaleString()}</td>
+                <td className="p-4">KES {debtor.balance_due.toLocaleString()}</td>
                 <td className="p-4">{debtor.next_followup_date}</td>
                 <td className="p-4">{getDealStageLabel(debtor.deal_stage)}</td>
                 <td className="p-4">{debtor.collection_update || "N/A"}</td>

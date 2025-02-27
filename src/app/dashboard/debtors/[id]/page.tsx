@@ -14,10 +14,12 @@ export default function DebtorDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
 
   // Follow-Up Fields
   const [dealStage, setDealStage] = useState("0");
-  const [nextFollowUp, setNextFollowUp] = useState("");
+  const [followUpDate, setFollowUpDate] = useState("");
   const [notes, setNotes] = useState("");
 
   // Admin Edit Modal
@@ -64,7 +66,7 @@ export default function DebtorDetailsPage() {
 
       const { data: userData } = await supabase
         .from("users")
-        .select("role")
+        .select("role, id")
         .eq("id", user.id)
         .single();
 
@@ -97,8 +99,24 @@ export default function DebtorDetailsPage() {
       setDebtor(data);
       setEditedDebtor(data);
       setDealStage(data.deal_stage || "0");
-      setNextFollowUp(data.next_followup_date || "");
+      setFollowUpDate(data.next_followup_date || "");
       setLoading(false);
+
+      // Fetch payment history
+      const { data: paymentData } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("debtor_id", id);
+
+      setPayments(paymentData || []);
+
+      // Fetch follow-up history
+      const { data: followUpData } = await supabase
+        .from("follow_ups")
+        .select("*")
+        .eq("debtor_id", id);
+
+      setFollowUps(followUpData || []);
     }
 
     fetchData();
@@ -120,21 +138,35 @@ export default function DebtorDetailsPage() {
   }, [supabase]);
 
   async function updateDebtor() {
-    const { error } = await supabase
-      .from("debtors")
-      .update({
-        deal_stage: dealStage,
-        next_followup_date: nextFollowUp,
-        collection_update: notes,
-        collection_update_date: new Date().toISOString(),
-      })
-      .eq("id", id);
+    // Insert a new follow-up record
+    const { error: followUpError } = await supabase.from("follow_ups").insert({
+      debtor_id: id,
+      status: dealStage,
+      notes: notes,
+      follow_up_date: new Date().toISOString(),
+      agent_id: userRole === "agent" ? (await supabase.auth.getUser()).data.user?.id : null, // Use agent_id if the user is an agent
+    });
 
-    if (!error) {
-      alert("Debtor updated successfully!");
-      setDebtor({ ...debtor, deal_stage: dealStage, next_followup_date: nextFollowUp });
+    if (!followUpError) {
+      // Update the debtors table with the latest follow-up details
+      const { error: updateError } = await supabase
+        .from("debtors")
+        .update({
+          deal_stage: dealStage,
+          next_followup_date: followUpDate,
+          collection_update: notes,
+        })
+        .eq("id", id);
+
+      if (!updateError) {
+        alert("Debtor updated successfully!");
+      } else {
+        alert("Error updating debtor: " + updateError.message);
+      }
+      window.location.reload(); // Full page refresh
     } else {
-      alert("Error updating debtor: " + error.message);
+      alert("Error logging follow-up: " + followUpError.message);
+      window.location.reload(); // Full page refresh
     }
   }
 
@@ -154,8 +186,7 @@ export default function DebtorDetailsPage() {
 
     if (!error) {
       alert("Debtor details updated successfully!");
-      setDebtor(updatedDebtor);
-      setShowEditModal(false);
+      router.reload(); // Refresh the page
     } else {
       alert("Error updating debtor details: " + error.message);
     }
@@ -170,8 +201,8 @@ export default function DebtorDetailsPage() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-3xl font-bold text-gray-800">Debtor Details</h2>
           {userRole === "admin" && (
-            <button 
-              onClick={() => setShowEditModal(true)} 
+            <button
+              onClick={() => setShowEditModal(true)}
               className="bg-gray-700 text-white px-4 py-2 rounded-md flex items-center"
             >
               <FaEdit className="mr-2" /> Edit Debtor
@@ -199,7 +230,7 @@ export default function DebtorDetailsPage() {
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h3 className="text-xl font-semibold">Follow-Up Details</h3>
           <label className="block">Update Follow-Up Stage:</label>
-          <select 
+          <select
             className="border p-2 rounded-md w-full"
             value={dealStage}
             onChange={(e) => setDealStage(e.target.value)}
@@ -212,15 +243,15 @@ export default function DebtorDetailsPage() {
           </select>
 
           <label className="block">Next Follow-Up Date:</label>
-          <input 
+          <input
             className="border p-2 rounded-md w-full"
             type="date"
-            value={nextFollowUp}
-            onChange={(e) => setNextFollowUp(e.target.value)}
+            value={followUpDate}
+            onChange={(e) => setFollowUpDate(e.target.value)}
           />
 
           <label className="block">Notes:</label>
-          <textarea 
+          <textarea
             className="border p-2 rounded-md w-full"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -229,6 +260,44 @@ export default function DebtorDetailsPage() {
           <button onClick={updateDebtor} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-4">
             Save Changes
           </button>
+        </div>
+
+        {/* Payment History */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Payment History</h3>
+          {payments.length > 0 ? (
+            <ul>
+              {payments.map((payment) => (
+                <li key={payment.id} className="mb-4">
+                  <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
+                  <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
+                  <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
+                  <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No payment history found.</p>
+          )}
+        </div>
+
+        {/* Follow-Up History */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Follow-Up History</h3>
+          {followUps.length > 0 ? (
+            <ul>
+              {followUps.map((followUp) => (
+                <li key={followUp.id} className="mb-4">
+                  <p><strong>Status:</strong> {followUp.status}</p>
+                  <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                  <p><strong>Notes:</strong> {followUp.notes}</p>
+                  <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No follow-up history found.</p>
+          )}
         </div>
 
         {/* Admin Edit Modal */}
@@ -243,7 +312,7 @@ export default function DebtorDetailsPage() {
                   .map((field) => (
                     <div key={field}>
                       <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>
-                      <input 
+                      <input
                         className="border p-2 rounded-md w-full"
                         type="text"
                         value={editedDebtor[field] || ""}
@@ -253,7 +322,7 @@ export default function DebtorDetailsPage() {
                   ))}
                 <div>
                   <label className="block font-medium text-gray-700">Assigned To:</label>
-                  <select 
+                  <select
                     className="border p-2 rounded-md w-full"
                     value={editedDebtor.assigned_to || ""}
                     onChange={(e) => setEditedDebtor({ ...editedDebtor, assigned_to: e.target.value })}
@@ -269,14 +338,14 @@ export default function DebtorDetailsPage() {
               </div>
 
               <div className="flex justify-end gap-4 mt-6">
-                <button 
-                  onClick={() => setShowEditModal(false)} 
+                <button
+                  onClick={() => setShowEditModal(false)}
                   className="bg-gray-500 text-white px-4 py-2 rounded-md"
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={updateDebtorDetails} 
+                <button
+                  onClick={updateDebtorDetails}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md"
                 >
                   Save Changes
