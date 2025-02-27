@@ -7,6 +7,36 @@ import { saveAs } from "file-saver";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
+const dealStages = {
+  "0": "Select",
+  "1": "Outsource Email",
+  "13": "No Contact Provided",
+  "27": "On Hold",
+  "16": "Requesting more Information",
+  "22": "Invalid Email",
+  "21": "Invalid Number",
+  "15": "Wrong Number",
+  "2": "Introduction Call",
+  "19": "Out of Service",
+  "18": "Not in Service",
+  "24": "Phone Switched Off",
+  "17": "Calls Dropped",
+  "25": "Follow Up-Email",
+  "3": "Ringing No Response",
+  "20": "Requested Call Back",
+  "4": "Field Visit Meeting",
+  "5": "Negotiation in progress",
+  "23": "PTP",
+  "7": "Scheduled Payment",
+  "8": "One-Off Payment",
+  "9": "Payment Confirmed by Client",
+  "10": "Debt Settled",
+  "14": "Non-Committal",
+  "11": "Disputing",
+  "12": "Legal",
+  "26": "Not Interested - BD",
+};
+
 export default function ReportsPage() {
   const supabase = createClientComponentClient();
   const [userRole, setUserRole] = useState<"admin" | "agent" | "client" | null>(null);
@@ -149,13 +179,13 @@ export default function ReportsPage() {
   const downloadPDF = async () => {
     const doc = new jsPDF();
     const currentDate = new Date().toLocaleDateString();
-  
+
     // Load the letterhead image from Cloudinary and add it to the PDF once it's fully loaded
     const img = new Image();
     img.src = 'https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg'; // Cloudinary URL
     img.onload = function() {
       doc.addImage(img, 'JPEG', 10, 10, 50, 30); // Adjust the position and size as needed
-  
+
       // Add Company Information
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 128); // Dark blue color
@@ -166,36 +196,36 @@ export default function ReportsPage() {
       doc.text("Phone: +254700314522", 70, 30);
       doc.text("Email: info@sni.co.ke", 70, 35);
       doc.text("Nairobi, Kenya", 70, 40);
-  
+
       // Add Report Title
       doc.setFontSize(18);
       doc.setTextColor(0, 0, 0); // Black color
       doc.setFont("times", "bold");
       doc.text("DEBTOR REPORT", doc.internal.pageSize.width / 2, 60, { align: "center" });
       doc.setFont("times", "normal");
-  
+
       // Add Date of Report Generation
       doc.setFontSize(10);
       doc.setTextColor(128, 128, 128); // Gray color
       doc.text(`Date: ${currentDate}`, doc.internal.pageSize.width - 50, 70);
-  
+
       let yOffset = 80;
-  
+
       groupedData.forEach((debtor, debtorIndex) => {
         // Section Title
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 128);
         doc.text(`Debtor ${debtorIndex + 1}: ${debtor.debtor_name}`, 15, yOffset);
-  
+
         doc.setFontSize(11);
         doc.setTextColor(0, 0, 0);
         doc.text(`Client: ${debtor.client}`, 15, yOffset + 10);
         doc.text(`Phone: ${debtor.debtor_phone}`, 15, yOffset + 15);
         doc.text(`Email: ${debtor.debtor_email}`, 15, yOffset + 20);
         doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 15, yOffset + 25);
-  
+
         yOffset += 35;
-  
+
         // Follow-Up History Table
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 128);
@@ -203,17 +233,18 @@ export default function ReportsPage() {
         doc.setFontSize(11);
         doc.setTextColor(0, 0, 0);
         yOffset += 5;
-  
+
         if (debtor.followUpHistory.length > 0) {
           debtor.followUpHistory.forEach((followUp, index) => {
-            doc.text(`- ${new Date(followUp.follow_up_date).toLocaleDateString()}: ${followUp.status}`, 15, yOffset + index * 6);
+            const statusLabel = dealStages[followUp.status] || followUp.status;
+            doc.text(`- ${new Date(followUp.follow_up_date).toLocaleDateString()}: ${statusLabel}`, 15, yOffset + index * 6);
           });
           yOffset += debtor.followUpHistory.length * 6 + 5;
         } else {
           doc.text("No follow-up records available.", 15, yOffset);
           yOffset += 10;
         }
-  
+
         // Payment History Table
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 128);
@@ -221,7 +252,7 @@ export default function ReportsPage() {
         doc.setFontSize(11);
         doc.setTextColor(0, 0, 0);
         yOffset += 5;
-  
+
         if (debtor.paymentHistory.length > 0) {
           debtor.paymentHistory.forEach((payment, index) => {
             doc.text(`- KES ${payment.amount.toLocaleString()} | ${new Date(payment.uploaded_at).toLocaleDateString()}`, 15, yOffset + index * 6);
@@ -231,24 +262,24 @@ export default function ReportsPage() {
           doc.text("No payment records available.", 15, yOffset);
           yOffset += 10;
         }
-  
+
         // Add horizontal break line
         doc.setDrawColor(0, 0, 0);
         doc.line(10, yOffset + 5, doc.internal.pageSize.width - 10, yOffset + 5);
         yOffset += 15;
-  
+
         if (yOffset >= doc.internal.pageSize.height - 50) {
           doc.addPage();
           yOffset = 20;
         }
       });
-  
+
       // Footer & Signature
       doc.setFontSize(10);
       doc.setTextColor(128, 128, 128);
       doc.text("This document is confidential and intended for the recipient only.", 15, doc.internal.pageSize.height - 20);
       doc.text("If you are not the intended recipient, please notify the sender and delete this document.", 15, doc.internal.pageSize.height - 15);
-  
+
       // Add Director's Signature
       const signatureImg = new Image();
       signatureImg.src = "https://res.cloudinary.com/dylmsnibf/image/upload/v1738334298/IMG_20240616_123128-removebg-preview_th0ica.png";
@@ -257,13 +288,12 @@ export default function ReportsPage() {
         doc.save("Sary_report.pdf");
       };
     };
-  
+
     // Ensure the image is loaded before adding it to the PDF
     img.onerror = function() {
       alert("Failed to load the letterhead image.");
     };
   };
-  
 
   return (
     <div className="flex min-h-screen w-full">
@@ -371,7 +401,7 @@ export default function ReportsPage() {
                   {debtor.followUpHistory.length > 0 ? (
                     debtor.followUpHistory.map((followUp) => (
                       <div key={followUp.id} className="mb-4">
-                        <p><strong>Status:</strong> {followUp.status}</p>
+                        <p><strong>Status:</strong> {dealStages[followUp.status] || followUp.status}</p>
                         <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
                         <p><strong>Notes:</strong> {followUp.notes}</p>
                         <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
