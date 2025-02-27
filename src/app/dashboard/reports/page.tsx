@@ -173,7 +173,126 @@ export default function ReportsPage() {
     }
   };
 
- 
+  const loadImage = (src) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(`Failed to load image: ${src}`);
+    });
+  };
+  
+  const downloadPDF = async () => {
+    try {
+      // Load all images first
+      const [letterheadImg, stampImg, signatureImg] = await Promise.all([
+        loadImage('https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg'),
+        loadImage('https://res.cloudinary.com/dylmsnibf/image/upload/v1740661391/1000015677__1_-removebg-preview_kivrni.png'),
+        loadImage('https://res.cloudinary.com/dylmsnibf/image/upload/v1740661391/Screenshot_2025-02-27_160213-removebg-preview_svjkuk.png'),
+      ]);
+  
+      for (const debtorId of selectedDebtors) {
+        const debtor = groupedData.find((d) => d.id === debtorId);
+        if (!debtor) continue; // Skip if debtor not found
+  
+        const doc = new jsPDF();
+        const currentDate = new Date().toLocaleDateString();
+        const currentTimestamp = new Date().toLocaleString();
+  
+        // Add Letterhead
+        doc.addImage(letterheadImg, 'JPEG', 10, 10, 50, 30);
+  
+        // Header Section
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 128);
+        doc.text("Sary Network International", 70, 20);
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text("8th Floor, Western Heights, Westlands, Nairobi", 70, 25);
+        doc.text("Phone: +254 700 314 522", 70, 30);
+        doc.text("Email: info@sni.co.ke", 70, 35);
+        doc.text("Nairobi, Kenya", 70, 40);
+  
+        // Title Section
+        doc.setFontSize(18);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("times", "bold");
+        doc.text("DEBTOR REPORT", doc.internal.pageSize.width / 2, 60, { align: "center" });
+        doc.setFont("times", "normal");
+  
+        // Date Section
+        doc.setFontSize(10);
+        doc.setTextColor(128, 128, 128);
+        doc.text(`Date: ${currentDate}`, doc.internal.pageSize.width - 50, 70);
+  
+        let yOffset = 80;
+  
+        // Debtor Information Section
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 128);
+        doc.text(`Debtor: ${debtor.debtor_name}`, 15, yOffset);
+  
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Client: ${debtor.client}`, 15, yOffset + 10);
+        doc.text(`Phone: ${debtor.debtor_phone}`, 15, yOffset + 15);
+        doc.text(`Email: ${debtor.debtor_email}`, 15, yOffset + 20);
+        doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 15, yOffset + 25);
+  
+        yOffset += 35;
+  
+        // Report Content Section
+        if (reportType === "followUpHistory") {
+          yOffset = renderFollowUpHistory(doc, debtor, yOffset);
+        } else if (reportType === "paymentHistory") {
+          yOffset = renderPaymentHistory(doc, debtor, yOffset);
+        } else if (reportType === "specialCases") {
+          yOffset = renderSpecialCases(doc, debtor, yOffset, specialCasesOptions);
+        }
+  
+       // Add Stamp & Signature
+const pageWidth = doc.internal.pageSize.width;
+const signatureWidth = 78; // Reduced by 2px
+const stampWidth = 70; // Larger stamp
+
+const shiftLeft = 12; // Move signature & text left (~0.5 inch)
+const shiftRight = 50; // Move stamp right (~2 inches total)
+
+const signatureX = (pageWidth - signatureWidth) / 2 - shiftLeft; // Center & shift left
+const signatureY = doc.internal.pageSize.height - 80; // Position above footer
+
+const stampX = (pageWidth - stampWidth) / 2 + shiftRight; // Center & shift further right
+const stampY = signatureY - 20; // Position above signature
+
+doc.addImage(stampImg, "PNG", stampX, stampY, stampWidth, stampWidth); // Larger stamp
+doc.addImage(signatureImg, "PNG", signatureX, signatureY, signatureWidth, 16); // Slightly smaller signature
+
+// Draw Signature Line
+const lineStartX = signatureX - 10; // Extend a little to the left
+const lineEndX = signatureX + signatureWidth + 10; // Extend a little to the right
+const lineY = signatureY + 18; // Place right below the signature
+
+doc.setDrawColor(0); // Black color
+doc.setLineWidth(0.5); // Thin line
+doc.line(lineStartX, lineY, lineEndX, lineY); // Draw the line
+
+// Signature text
+doc.setFontSize(11);
+doc.setTextColor(0, 0, 0);
+doc.text("Hillary Wekesa", (pageWidth / 2) - shiftLeft, doc.internal.pageSize.height - 55, { align: "center" }); // Shifted left
+doc.text("Director", (pageWidth / 2) - shiftLeft, doc.internal.pageSize.height - 50, { align: "center" }); // Shifted left
+
+        // Footer
+        renderFooter(doc, currentTimestamp);
+  
+        // Save the document
+        doc.save(`Sary_Report_${debtor.debtor_name}.pdf`);
+      }
+    } catch (error) {
+      alert(error);
+    }
+  };
+  
 
 const renderFollowUpHistory = (doc, debtor, yOffset) => {
   doc.setFontSize(14);
@@ -278,8 +397,8 @@ const renderCollectionUpdates = (doc, debtor, yOffset) => {
 const renderFooter = (doc, timestamp) => {
   doc.setFontSize(10);
   doc.setTextColor(128, 128, 128);
-  doc.text("This is an official academic record of Sary Network International.", 15, doc.internal.pageSize.height - 20);
-  doc.text(`Timestamp: ${timestamp}`, 15, doc.internal.pageSize.height - 15);
+  doc.text("This is an official  record of Sary Network International.", 15, doc.internal.pageSize.height - 20);
+  doc.text(`Generated on: ${timestamp}`, 15, doc.internal.pageSize.height - 15);
 };
 
       
