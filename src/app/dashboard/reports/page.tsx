@@ -26,6 +26,7 @@ export default function ReportsPage() {
   const [filteredReports, setFilteredReports] = useState<any[]>([]); // Reports filtered by filters
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]); // Payment history for all filtered debtors
   const [followUpHistory, setFollowUpHistory] = useState<any[]>([]); // Follow-up history for all filtered debtors
+  const [groupedData, setGroupedData] = useState<any[]>([]); // Grouped data by debtor
 
   useEffect(() => {
     async function fetchUserData() {
@@ -117,11 +118,26 @@ export default function ReportsPage() {
           .select("*")
           .in("debtor_id", debtorIds);
         setFollowUpHistory(followUpData || []);
+
+        // Group data by debtor
+        const grouped = groupDataByDebtor(filteredReports, followUpData, paymentData);
+        setGroupedData(grouped);
       }
     }
 
     fetchHistory();
   }, [filteredReports]);
+
+  // Group Data by Debtor
+  const groupDataByDebtor = (reports, followUpHistory, paymentHistory) => {
+    return reports.map((report) => {
+      return {
+        ...report,
+        followUpHistory: followUpHistory.filter((followUp) => followUp.debtor_id === report.id),
+        paymentHistory: paymentHistory.filter((payment) => payment.debtor_id === report.id),
+      };
+    });
+  };
 
   // Handle Generate Report Button Click
   const handleGenerateReport = () => {
@@ -136,41 +152,42 @@ export default function ReportsPage() {
   const downloadPDF = async () => {
     const doc = new jsPDF();
 
-    // Add Basic Information
-    doc.setFontSize(16);
-    doc.text("Basic Information", 10, 10);
-    doc.setFontSize(12);
-    filteredReports.forEach((report, index) => {
-      const y = 20 + index * 30;
-      doc.text(`Name: ${report.debtor_name}`, 10, y);
-      doc.text(`Client: ${report.client}`, 10, y + 5);
-      doc.text(`Phone: ${report.debtor_phone}`, 10, y + 10);
-      doc.text(`Email: ${report.debtor_email}`, 10, y + 15);
-      doc.text(`Debt Amount: KES ${report.debt_amount.toLocaleString()}`, 10, y + 20);
-    });
+    groupedData.forEach((debtor, debtorIndex) => {
+      const yOffset = 10 + debtorIndex * 150;
 
-    // Add Follow-Up History
-    doc.setFontSize(16);
-    doc.text("Follow-Up History", 10, doc.previousAutoTable?.finalY || 50);
-    doc.setFontSize(12);
-    followUpHistory.forEach((followUp, index) => {
-      const y = (doc.previousAutoTable?.finalY || 60) + index * 30;
-      doc.text(`Status: ${followUp.status}`, 10, y);
-      doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, y + 5);
-      doc.text(`Notes: ${followUp.notes}`, 10, y + 10);
-      doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, y + 15);
-    });
+      // Add Basic Information
+      doc.setFontSize(16);
+      doc.text(`Basic Information - ${debtor.debtor_name}`, 10, yOffset);
+      doc.setFontSize(12);
+      doc.text(`Name: ${debtor.debtor_name}`, 10, yOffset + 10);
+      doc.text(`Client: ${debtor.client}`, 10, yOffset + 15);
+      doc.text(`Phone: ${debtor.debtor_phone}`, 10, yOffset + 20);
+      doc.text(`Email: ${debtor.debtor_email}`, 10, yOffset + 25);
+      doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 10, yOffset + 30);
 
-    // Add Payment History
-    doc.setFontSize(16);
-    doc.text("Payment History", 10, doc.previousAutoTable?.finalY || 100);
-    doc.setFontSize(12);
-    paymentHistory.forEach((payment, index) => {
-      const y = (doc.previousAutoTable?.finalY || 110) + index * 30;
-      doc.text(`Amount: KES ${payment.amount.toLocaleString()}`, 10, y);
-      doc.text(`Proof of Payment: View`, 10, y + 5);
-      doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, y + 10);
-      doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, y + 15);
+      // Add Follow-Up History
+      doc.setFontSize(16);
+      doc.text("Follow-Up History", 10, yOffset + 40);
+      doc.setFontSize(12);
+      debtor.followUpHistory.forEach((followUp, followUpIndex) => {
+        const followUpYOffset = yOffset + 50 + followUpIndex * 20;
+        doc.text(`Status: ${followUp.status}`, 10, followUpYOffset);
+        doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, followUpYOffset + 5);
+        doc.text(`Notes: ${followUp.notes}`, 10, followUpYOffset + 10);
+        doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, followUpYOffset + 15);
+      });
+
+      // Add Payment History
+      doc.setFontSize(16);
+      doc.text("Payment History", 10, yOffset + 100);
+      doc.setFontSize(12);
+      debtor.paymentHistory.forEach((payment, paymentIndex) => {
+        const paymentYOffset = yOffset + 110 + paymentIndex * 20;
+        doc.text(`Amount: KES ${payment.amount.toLocaleString()}`, 10, paymentYOffset);
+        doc.text(`Proof of Payment: View`, 10, paymentYOffset + 5);
+        doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, paymentYOffset + 10);
+        doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, paymentYOffset + 15);
+      });
     });
 
     doc.save("report.pdf");
@@ -180,63 +197,72 @@ export default function ReportsPage() {
   const downloadExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    // Basic Information Sheet
-    const basicInfo = filteredReports.map((report) => ({
-      "Name": report.debtor_name,
-      "Client": report.client,
-      "Phone": report.debtor_phone,
-      "Email": report.debtor_email,
-      "Debt Amount": `KES ${report.debt_amount.toLocaleString()}`,
-    }));
-    const basicInfoSheet = XLSX.utils.json_to_sheet(basicInfo);
-    XLSX.utils.book_append_sheet(workbook, basicInfoSheet, "Basic Information");
+    groupedData.forEach((debtor) => {
+      // Basic Information Sheet
+      const basicInfo = [
+        {
+          "Name": debtor.debtor_name,
+          "Client": debtor.client,
+          "Phone": debtor.debtor_phone,
+          "Email": debtor.debtor_email,
+          "Debt Amount": `KES ${debtor.debt_amount.toLocaleString()}`,
+        },
+      ];
+      const basicInfoSheet = XLSX.utils.json_to_sheet(basicInfo);
+      XLSX.utils.book_append_sheet(workbook, basicInfoSheet, `Basic Info - ${debtor.debtor_name}`);
 
-    // Follow-Up History Sheet
-    const followUpInfo = followUpHistory.map((followUp) => ({
-      "Status": followUp.status,
-      "Follow-Up Date": new Date(followUp.follow_up_date).toLocaleDateString(),
-      "Notes": followUp.notes,
-      "Created At": new Date(followUp.created_at).toLocaleString(),
-    }));
-    const followUpSheet = XLSX.utils.json_to_sheet(followUpInfo);
-    XLSX.utils.book_append_sheet(workbook, followUpSheet, "Follow-Up History");
+      // Follow-Up History Sheet
+      const followUpInfo = debtor.followUpHistory.map((followUp) => ({
+        "Status": followUp.status,
+        "Follow-Up Date": new Date(followUp.follow_up_date).toLocaleDateString(),
+        "Notes": followUp.notes,
+        "Created At": new Date(followUp.created_at).toLocaleString(),
+      }));
+      const followUpSheet = XLSX.utils.json_to_sheet(followUpInfo);
+      XLSX.utils.book_append_sheet(workbook, followUpSheet, `Follow-Up History - ${debtor.debtor_name}`);
 
-    // Payment History Sheet
-    const paymentInfo = paymentHistory.map((payment) => ({
-      "Amount": `KES ${payment.amount.toLocaleString()}`,
-      "Proof of Payment": "View",
-      "Verified": payment.verified ? "Yes" : "No",
-      "Uploaded At": new Date(payment.uploaded_at).toLocaleString(),
-    }));
-    const paymentSheet = XLSX.utils.json_to_sheet(paymentInfo);
-    XLSX.utils.book_append_sheet(workbook, paymentSheet, "Payment History");
+      // Payment History Sheet
+      const paymentInfo = debtor.paymentHistory.map((payment) => ({
+        "Amount": `KES ${payment.amount.toLocaleString()}`,
+        "Proof of Payment": "View",
+        "Verified": payment.verified ? "Yes" : "No",
+        "Uploaded At": new Date(payment.uploaded_at).toLocaleString(),
+      }));
+      const paymentSheet = XLSX.utils.json_to_sheet(paymentInfo);
+      XLSX.utils.book_append_sheet(workbook, paymentSheet, `Payment History - ${debtor.debtor_name}`);
+    });
 
     XLSX.writeFile(workbook, "report.xlsx");
   };
 
   // Download Report as CSV
   const downloadCSV = () => {
-    const csvData = [
-      ...filteredReports.map((report) => ({
-        "Name": report.debtor_name,
-        "Client": report.client,
-        "Phone": report.debtor_phone,
-        "Email": report.debtor_email,
-        "Debt Amount": `KES ${report.debt_amount.toLocaleString()}`,
-      })),
-      ...followUpHistory.map((followUp) => ({
+    const csvData = groupedData.flatMap((debtor) => [
+      {
+        "Type": "Basic Info",
+        "Name": debtor.debtor_name,
+        "Client": debtor.client,
+        "Phone": debtor.debtor_phone,
+        "Email": debtor.debtor_email,
+        "Debt Amount": `KES ${debtor.debt_amount.toLocaleString()}`,
+      },
+      ...debtor.followUpHistory.map((followUp) => ({
+        "Type": "Follow-Up History",
+        "Name": debtor.debtor_name,
         "Status": followUp.status,
         "Follow-Up Date": new Date(followUp.follow_up_date).toLocaleDateString(),
         "Notes": followUp.notes,
         "Created At": new Date(followUp.created_at).toLocaleString(),
       })),
-      ...paymentHistory.map((payment) => ({
+      ...debtor.paymentHistory.map((payment) => ({
+        "Type": "Payment History",
+        "Name": debtor.debtor_name,
         "Amount": `KES ${payment.amount.toLocaleString()}`,
         "Proof of Payment": "View",
         "Verified": payment.verified ? "Yes" : "No",
         "Uploaded At": new Date(payment.uploaded_at).toLocaleString(),
       })),
-    ];
+    ]);
 
     const csv = Papa.unparse(csvData);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -252,7 +278,6 @@ export default function ReportsPage() {
         {/* Filter Section */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h3 className="text-lg font-semibold mb-4">Search Leads & Generate Reports</h3>
-          
           <div className="grid grid-cols-2 gap-4">
             {/* Client Filter */}
             <div>
@@ -264,7 +289,6 @@ export default function ReportsPage() {
                 ))}
               </select>
             </div>
-
             {/* Assigned Agent Filter */}
             <div>
               <label className="block font-medium">Assigned Agent:</label>
@@ -276,7 +300,6 @@ export default function ReportsPage() {
               </select>
             </div>
           </div>
-
           {/* Generate Report Button */}
           <button
             onClick={handleGenerateReport}
@@ -292,28 +315,38 @@ export default function ReportsPage() {
           {loading ? (
             <p>Loading reports...</p>
           ) : (
-            <table className="w-full border-collapse border border-gray-200">
-              <thead>
-                <tr className="bg-blue-900 text-white">
-                  <th className="px-4 py-2 border">Debtor Name</th>
-                  <th className="px-4 py-2 border">Client</th>
-                  <th className="px-4 py-2 border">Debt Amount</th>
-                  <th className="px-4 py-2 border">Assigned Agent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReports.map((report) => (
-                  <tr key={report.id} className="border-b">
-                    <td className="px-4 py-2 border">{report.debtor_name}</td>
-                    <td className="px-4 py-2 border">{report.client}</td>
-                    <td className="px-4 py-2 border">KES {report.debt_amount.toLocaleString()}</td>
-                    <td className="px-4 py-2 border">
-                      {agents.find((agent) => agent.id === report.assigned_to)?.name || "Unassigned"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div>
+              {groupedData.map((debtor) => (
+                <div key={debtor.id} className="mb-8">
+                  <h4 className="text-lg font-semibold mb-2">{debtor.debtor_name}</h4>
+                  <p><strong>Client:</strong> {debtor.client}</p>
+                  <p><strong>Phone:</strong> {debtor.debtor_phone}</p>
+                  <p><strong>Email:</strong> {debtor.debtor_email}</p>
+                  <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
+
+                  <h5 className="text-md font-semibold mt-4 mb-2">Follow-Up History</h5>
+                  {debtor.followUpHistory.map((followUp) => (
+                    <div key={followUp.id} className="mb-4">
+                      <p><strong>Status:</strong> {followUp.status}</p>
+                      <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                      <p><strong>Notes:</strong> {followUp.notes}</p>
+                      <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+
+                  <h5 className="text-md font-semibold mt-4 mb-2">Payment History</h5>
+                  {debtor.paymentHistory.map((payment, index) => (
+                    <div key={payment.id} className="mb-4">
+                      <p><strong>{index + 1}</strong></p>
+                      <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
+                      <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
+                      <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
+                      <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -322,42 +355,36 @@ export default function ReportsPage() {
           <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center">
             <div className="bg-white p-6 rounded-lg w-[800px] max-h-[90vh] overflow-y-auto shadow-lg">
               <h3 className="text-2xl font-semibold mb-4 text-gray-800">Report Preview</h3>
+              {groupedData.map((debtor) => (
+                <div key={debtor.id} className="mb-8">
+                  <h4 className="text-lg font-semibold mb-2">{debtor.debtor_name}</h4>
+                  <p><strong>Client:</strong> {debtor.client}</p>
+                  <p><strong>Phone:</strong> {debtor.debtor_phone}</p>
+                  <p><strong>Email:</strong> {debtor.debtor_email}</p>
+                  <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
 
-              {/* Basic Information */}
-              <h4 className="text-lg font-semibold mb-2">Basic Information</h4>
-              {filteredReports.map((report) => (
-                <div key={report.id} className="mb-6">
-                  <p><strong>Name:</strong> {report.debtor_name}</p>
-                  <p><strong>Client:</strong> {report.client}</p>
-                  <p><strong>Phone:</strong> {report.debtor_phone}</p>
-                  <p><strong>Email:</strong> {report.debtor_email}</p>
-                  <p><strong>Debt Amount:</strong> KES {report.debt_amount.toLocaleString()}</p>
+                  <h5 className="text-md font-semibold mt-4 mb-2">Follow-Up History</h5>
+                  {debtor.followUpHistory.map((followUp) => (
+                    <div key={followUp.id} className="mb-4">
+                      <p><strong>Status:</strong> {followUp.status}</p>
+                      <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                      <p><strong>Notes:</strong> {followUp.notes}</p>
+                      <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+
+                  <h5 className="text-md font-semibold mt-4 mb-2">Payment History</h5>
+                  {debtor.paymentHistory.map((payment, index) => (
+                    <div key={payment.id} className="mb-4">
+                      <p><strong>{index + 1}</strong></p>
+                      <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
+                      <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
+                      <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
+                      <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
+                    </div>
+                  ))}
                 </div>
               ))}
-
-              {/* Follow-Up History */}
-              <h4 className="text-lg font-semibold mb-2">Follow-Up History</h4>
-              {followUpHistory.map((followUp) => (
-                <div key={followUp.id} className="mb-6">
-                  <p><strong>Status:</strong> {followUp.status}</p>
-                  <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
-                  <p><strong>Notes:</strong> {followUp.notes}</p>
-                  <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
-                </div>
-              ))}
-
-              {/* Payment History */}
-              <h4 className="text-lg font-semibold mb-2">Payment History</h4>
-              {paymentHistory.map((payment, index) => (
-                <div key={payment.id} className="mb-6">
-                  <p><strong>{index + 1}</strong></p>
-                  <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
-                  <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
-                  <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
-                  <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
-                </div>
-              ))}
-
               {/* Download Buttons */}
               <div className="flex justify-end gap-4 mt-6">
                 <button
