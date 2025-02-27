@@ -26,19 +26,19 @@ export default function DebtorDetailsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editedDebtor, setEditedDebtor] = useState<any>({});
 
+  // Add state variables for PtP and Collection Updates
+  const [ptpDate, setPtpDate] = useState("");
+  const [ptpAmount, setPtpAmount] = useState("");
+  const [collectionUpdateDate, setCollectionUpdateDate] = useState("");
+  const [collectionNotes, setCollectionNotes] = useState("");
+
+  // Add state variables for PtP and Collection Update logs
+  const [ptpLogs, setPtpLogs] = useState<any[]>([]);
+  const [collectionUpdateLogs, setCollectionUpdateLogs] = useState<any[]>([]);
+
   const dealStages = [
     { value: "0", label: "Select" },
     { value: "1", label: "Outsource Email" },
-    { value: "13", label: "No Contact Provided" },
-    { value: "27", label: "On Hold" },
-    { value: "16", label: "Requesting more Information" },
-    { value: "22", label: "Invalid Email" },
-    { value: "21", label: "Invalid Number" },
-    { value: "15", label: "Wrong Number" },
-    { value: "2", label: "Introduction Call" },
-    { value: "19", label: "Out of Service" },
-    { value: "18", label: "Not in Service" },
-    { value: "24", label: "Phone Switched Off" },
     { value: "17", label: "Calls Dropped" },
     { value: "25", label: "Follow Up-Email" },
     { value: "3", label: "Ringing No Response" },
@@ -83,7 +83,6 @@ export default function DebtorDetailsPage() {
         return;
       }
 
-      // Fetch the assigned agent's name separately
       if (data?.assigned_to) {
         const { data: agentData, error: agentError } = await supabase
           .from("users")
@@ -92,7 +91,7 @@ export default function DebtorDetailsPage() {
           .single();
 
         if (!agentError && agentData) {
-          data.assigned_to = agentData.full_name; // Replace ID with name
+          data.assigned_to = agentData.full_name;
         }
       }
 
@@ -102,7 +101,6 @@ export default function DebtorDetailsPage() {
       setFollowUpDate(data.next_followup_date || "");
       setLoading(false);
 
-      // Fetch payment history
       const { data: paymentData } = await supabase
         .from("payments")
         .select("*")
@@ -110,13 +108,16 @@ export default function DebtorDetailsPage() {
 
       setPayments(paymentData || []);
 
-      // Fetch follow-up history
       const { data: followUpData } = await supabase
         .from("follow_ups")
         .select("*")
         .eq("debtor_id", id);
 
       setFollowUps(followUpData || []);
+
+      // Fetch PtP and Collection Update logs
+      fetchPtpLogs();
+      fetchCollectionUpdateLogs();
     }
 
     fetchData();
@@ -138,17 +139,15 @@ export default function DebtorDetailsPage() {
   }, [supabase]);
 
   async function updateDebtor() {
-    // Insert a new follow-up record
     const { error: followUpError } = await supabase.from("follow_ups").insert({
       debtor_id: id,
       status: dealStage,
       notes: notes,
       follow_up_date: new Date().toISOString(),
-      agent_id: userRole === "agent" ? (await supabase.auth.getUser()).data.user?.id : null, // Use agent_id if the user is an agent
+      agent_id: userRole === "agent" ? (await supabase.auth.getUser()).data.user?.id : null,
     });
 
     if (!followUpError) {
-      // Update the debtors table with the latest follow-up details
       const { error: updateError } = await supabase
         .from("debtors")
         .update({
@@ -163,15 +162,14 @@ export default function DebtorDetailsPage() {
       } else {
         alert("Error updating debtor: " + updateError.message);
       }
-      window.location.reload(); // Full page refresh
+      window.location.reload();
     } else {
       alert("Error logging follow-up: " + followUpError.message);
-      window.location.reload(); // Full page refresh
+      window.location.reload();
     }
   }
 
   async function updateDebtorDetails() {
-    // Convert empty strings to null before saving
     const updatedDebtor = { ...editedDebtor };
     for (const key in updatedDebtor) {
       if (updatedDebtor[key] === "") {
@@ -186,10 +184,55 @@ export default function DebtorDetailsPage() {
 
     if (!error) {
       alert("Debtor details updated successfully!");
-      router.reload(); // Refresh the page
+      router.reload();
     } else {
       alert("Error updating debtor details: " + error.message);
     }
+  }
+
+  // Add functions to log PtP and Collection Updates
+  async function logPtp() {
+    const { error } = await supabase.from("ptp").insert({
+      debtor_id: id,
+      ptp_date: ptpDate,
+      ptp_amount: parseFloat(ptpAmount),
+      total_debt: debtor.debt_amount,
+      agent_id: userRole === "agent" ? (await supabase.auth.getUser()).data.user?.id : null,
+    });
+
+    if (!error) {
+      alert("PtP logged successfully!");
+      fetchPtpLogs();
+    } else {
+      alert("Error logging PtP: " + error.message);
+    }
+  }
+
+  async function logCollectionUpdate() {
+    const { error } = await supabase.from("collection_updates").insert({
+      debtor_id: id,
+      update_date: collectionUpdateDate,
+      collection_notes: collectionNotes,
+      agent_id: userRole === "agent" ? (await supabase.auth.getUser()).data.user?.id : null,
+    });
+
+    if (!error) {
+      alert("Collection update logged successfully!");
+      fetchCollectionUpdateLogs();
+    } else {
+      alert("Error logging collection update: " + error.message);
+    }
+  }
+
+  // Fetch PtP and Collection Update logs
+  async function fetchPtpLogs() {
+    const { data } = await supabase.from("ptp").select("*").eq("debtor_id", id);
+    setPtpLogs(data || []);
+  }
+
+  async function fetchCollectionUpdateLogs() {
+    const { data } = await supabase.from("collection_updates").select("*").eq("debtor_id", id);
+    setCollectionUpdateLogs(data || []);
   }
 
   if (loading) return <p className="text-center mt-10 text-xl">Loading...</p>;
@@ -262,6 +305,80 @@ export default function DebtorDetailsPage() {
           </button>
         </div>
 
+         {/* PtP Form and Logs */}
+         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Promise to Pay (PtP)</h3>
+          <label className="block">PtP Date:</label>
+          <input
+            className="border p-2 rounded-md w-full"
+            type="date"
+            value={ptpDate}
+            onChange={(e) => setPtpDate(e.target.value)}
+          />
+          <label className="block">PtP Amount:</label>
+          <input
+            className="border p-2 rounded-md w-full"
+            type="number"
+            value={ptpAmount}
+            onChange={(e) => setPtpAmount(e.target.value)}
+          />
+          <button onClick={logPtp} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-4">
+            Log PtP
+          </button>
+
+          <h3 className="text-xl font-semibold mt-6">PtP History</h3>
+          {ptpLogs.length > 0 ? (
+            <ul>
+              {ptpLogs.map((ptp) => (
+                <li key={ptp.id} className="mb-4">
+                  <p><strong>PtP Date:</strong> {new Date(ptp.ptp_date).toLocaleDateString()}</p>
+                  <p><strong>PtP Amount:</strong> KES {ptp.ptp_amount.toLocaleString()}</p>
+                  <p><strong>Total Debt:</strong> KES {ptp.total_debt.toLocaleString()}</p>
+                  <p><strong>Logged At:</strong> {new Date(ptp.created_at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No PtP history found.</p>
+          )}
+        </div>
+
+        {/* Collection Update Form and Logs */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-xl font-semibold">Collection Update</h3>
+          <label className="block">Update Date:</label>
+          <input
+            className="border p-2 rounded-md w-full"
+            type="date"
+            value={collectionUpdateDate}
+            onChange={(e) => setCollectionUpdateDate(e.target.value)}
+          />
+          <label className="block">Collection Notes:</label>
+          <textarea
+            className="border p-2 rounded-md w-full"
+            value={collectionNotes}
+            onChange={(e) => setCollectionNotes(e.target.value)}
+          />
+          <button onClick={logCollectionUpdate} className="bg-blue-600 text-white px-4 py-2 rounded-md mt-4">
+            Log Collection Update
+          </button>
+
+          <h3 className="text-xl font-semibold mt-6">Collection Update History</h3>
+          {collectionUpdateLogs.length > 0 ? (
+            <ul>
+              {collectionUpdateLogs.map((update) => (
+                <li key={update.id} className="mb-4">
+                  <p><strong>Update Date:</strong> {new Date(update.update_date).toLocaleDateString()}</p>
+                  <p><strong>Collection Notes:</strong> {update.collection_notes}</p>
+                  <p><strong>Logged At:</strong> {new Date(update.created_at).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No collection update history found.</p>
+          )}
+        </div>
+
         {/* Payment History */}
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h3 className="text-xl font-semibold">Payment History</h3>
@@ -286,14 +403,17 @@ export default function DebtorDetailsPage() {
           <h3 className="text-xl font-semibold">Follow-Up History</h3>
           {followUps.length > 0 ? (
             <ul>
-              {followUps.map((followUp) => (
-                <li key={followUp.id} className="mb-4">
-                  <p><strong>Status:</strong> {followUp.status}</p>
-                  <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
-                  <p><strong>Notes:</strong> {followUp.notes}</p>
-                  <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
-                </li>
-              ))}
+              {followUps.map((followUp) => {
+                const statusLabel = dealStages.find(stage => stage.value === followUp.status)?.label || followUp.status;
+                return (
+                  <li key={followUp.id} className="mb-4">
+                    <p><strong>Status:</strong> {statusLabel}</p>
+                    <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                    <p><strong>Notes:</strong> {followUp.notes}</p>
+                    <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p>No follow-up history found.</p>
@@ -308,7 +428,7 @@ export default function DebtorDetailsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 {Object.keys(debtor)
-                  .filter((field) => field !== "client_id") // Exclude client_id from the edit modal
+                  .filter((field) => field !== "client_id")
                   .map((field) => (
                     <div key={field}>
                       <label className="block font-medium text-gray-700">{field.replace("_", " ")}:</label>

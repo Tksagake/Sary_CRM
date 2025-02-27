@@ -401,7 +401,7 @@ export default function ReportsPage() {
                   {debtor.followUpHistory.length > 0 ? (
                     debtor.followUpHistory.map((followUp) => (
                       <div key={followUp.id} className="mb-4">
-                        <p><strong>Status:</strong> {dealStages[followUp.status] || followUp.status}</p>
+                        <p><strong>Status:</strong> {followUp.status}</p>
                         <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
                         <p><strong>Notes:</strong> {followUp.notes}</p>
                         <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
