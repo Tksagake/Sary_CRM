@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Navbar from "@/components/Navbar";
 import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
-import Papa from "papaparse";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
@@ -152,121 +150,81 @@ export default function ReportsPage() {
   const downloadPDF = async () => {
     const doc = new jsPDF();
 
-    groupedData.forEach((debtor, debtorIndex) => {
-      const yOffset = 10 + debtorIndex * 150;
+    // Load the image from Cloudinary and add it to the PDF once it's fully loaded
+    const img = new Image();
+    img.src = 'https://res.cloudinary.com/dylmsnibf/image/upload/v1740623140/sary_2_fjgiao.jpg'; // Cloudinary URL
+    img.onload = function() {
+      doc.addImage(img, 'JPEG', 10, 10, 50, 30); // Adjust the position and size as needed
 
-      // Add Basic Information
-      doc.setFontSize(16);
-      doc.text(`Basic Information - ${debtor.debtor_name}`, 10, yOffset);
+      // Add Company Information
+      doc.setFontSize(14);
+      doc.text("Sary Network International", 70, 20);
       doc.setFontSize(12);
-      doc.text(`Name: ${debtor.debtor_name}`, 10, yOffset + 10);
-      doc.text(`Client: ${debtor.client}`, 10, yOffset + 15);
-      doc.text(`Phone: ${debtor.debtor_phone}`, 10, yOffset + 20);
-      doc.text(`Email: ${debtor.debtor_email}`, 10, yOffset + 25);
-      doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 10, yOffset + 30);
+      doc.text("Your Company Address", 70, 25);
+      doc.text("Phone: +123 456 789", 70, 30);
+      doc.text("Email: info@sarynetwork.com", 70, 35);
 
-      // Add Follow-Up History
-      doc.setFontSize(16);
-      doc.text("Follow-Up History", 10, yOffset + 40);
-      doc.setFontSize(12);
-      debtor.followUpHistory.forEach((followUp, followUpIndex) => {
-        const followUpYOffset = yOffset + 50 + followUpIndex * 20;
-        doc.text(`Status: ${followUp.status}`, 10, followUpYOffset);
-        doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, followUpYOffset + 5);
-        doc.text(`Notes: ${followUp.notes}`, 10, followUpYOffset + 10);
-        doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, followUpYOffset + 15);
+      let yOffset = 50;
+
+      groupedData.forEach((debtor, debtorIndex) => {
+        const initialYOffset = yOffset;
+
+        // Add Basic Information
+        doc.setFontSize(12);
+        doc.text(`Basic Information - ${debtor.debtor_name}`, 10, initialYOffset);
+        doc.text(`Name: ${debtor.debtor_name}`, 10, initialYOffset + 10);
+        doc.text(`Client: ${debtor.client}`, 10, initialYOffset + 15);
+        doc.text(`Phone: ${debtor.debtor_phone}`, 10, initialYOffset + 20);
+        doc.text(`Email: ${debtor.debtor_email}`, 10, initialYOffset + 25);
+        doc.text(`Debt Amount: KES ${debtor.debt_amount.toLocaleString()}`, 10, initialYOffset + 30);
+
+        // Add Follow-Up History
+        doc.text("Follow-Up History", 10, initialYOffset + 40);
+        if (debtor.followUpHistory.length > 0) {
+          debtor.followUpHistory.forEach((followUp, followUpIndex) => {
+            const followUpYOffset = initialYOffset + 50 + followUpIndex * 20;
+            doc.text(`Status: ${followUp.status}`, 10, followUpYOffset);
+            doc.text(`Follow-Up Date: ${new Date(followUp.follow_up_date).toLocaleDateString()}`, 10, followUpYOffset + 5);
+            doc.text(`Notes: ${followUp.notes}`, 10, followUpYOffset + 10);
+            doc.text(`Created At: ${new Date(followUp.created_at).toLocaleString()}`, 10, followUpYOffset + 15);
+          });
+          yOffset = followUpYOffset + 20;
+        } else {
+          doc.text("No follow-up records available.", 10, initialYOffset + 50);
+          yOffset = initialYOffset + 70;
+        }
+
+        // Add Payment History
+        doc.text("Payment History", 10, yOffset);
+        if (debtor.paymentHistory.length > 0) {
+          debtor.paymentHistory.forEach((payment, paymentIndex) => {
+            const paymentYOffset = yOffset + 10 + paymentIndex * 20;
+            doc.text(`Amount: KES ${payment.amount.toLocaleString()}`, 10, paymentYOffset);
+            doc.text(`Proof of Payment: View`, 10, paymentYOffset + 5);
+            doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, paymentYOffset + 10);
+            doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, paymentYOffset + 15);
+          });
+          yOffset = paymentYOffset + 20;
+        } else {
+          doc.text("No payment records available.", 10, yOffset + 10);
+          yOffset += 30;
+        }
+
+        // Add space between debtors
+        yOffset += 20;
+        if (yOffset >= doc.internal.pageSize.height - 10) {
+          doc.addPage();
+          yOffset = 10; // Reset Y offset for new page
+        }
       });
 
-      // Add Payment History
-      doc.setFontSize(16);
-      doc.text("Payment History", 10, yOffset + 100);
-      doc.setFontSize(12);
-      debtor.paymentHistory.forEach((payment, paymentIndex) => {
-        const paymentYOffset = yOffset + 110 + paymentIndex * 20;
-        doc.text(`Amount: KES ${payment.amount.toLocaleString()}`, 10, paymentYOffset);
-        doc.text(`Proof of Payment: View`, 10, paymentYOffset + 5);
-        doc.text(`Verified: ${payment.verified ? "Yes" : "No"}`, 10, paymentYOffset + 10);
-        doc.text(`Uploaded At: ${new Date(payment.uploaded_at).toLocaleString()}`, 10, paymentYOffset + 15);
-      });
-    });
+      doc.save("report.pdf");
+    };
 
-    doc.save("report.pdf");
-  };
-
-  // Download Report as Excel
-  const downloadExcel = () => {
-    const workbook = XLSX.utils.book_new();
-
-    groupedData.forEach((debtor) => {
-      // Basic Information Sheet
-      const basicInfo = [
-        {
-          "Name": debtor.debtor_name,
-          "Client": debtor.client,
-          "Phone": debtor.debtor_phone,
-          "Email": debtor.debtor_email,
-          "Debt Amount": `KES ${debtor.debt_amount.toLocaleString()}`,
-        },
-      ];
-      const basicInfoSheet = XLSX.utils.json_to_sheet(basicInfo);
-      XLSX.utils.book_append_sheet(workbook, basicInfoSheet, `Basic Info - ${debtor.debtor_name}`);
-
-      // Follow-Up History Sheet
-      const followUpInfo = debtor.followUpHistory.map((followUp) => ({
-        "Status": followUp.status,
-        "Follow-Up Date": new Date(followUp.follow_up_date).toLocaleDateString(),
-        "Notes": followUp.notes,
-        "Created At": new Date(followUp.created_at).toLocaleString(),
-      }));
-      const followUpSheet = XLSX.utils.json_to_sheet(followUpInfo);
-      XLSX.utils.book_append_sheet(workbook, followUpSheet, `Follow-Up History - ${debtor.debtor_name}`);
-
-      // Payment History Sheet
-      const paymentInfo = debtor.paymentHistory.map((payment) => ({
-        "Amount": `KES ${payment.amount.toLocaleString()}`,
-        "Proof of Payment": "View",
-        "Verified": payment.verified ? "Yes" : "No",
-        "Uploaded At": new Date(payment.uploaded_at).toLocaleString(),
-      }));
-      const paymentSheet = XLSX.utils.json_to_sheet(paymentInfo);
-      XLSX.utils.book_append_sheet(workbook, paymentSheet, `Payment History - ${debtor.debtor_name}`);
-    });
-
-    XLSX.writeFile(workbook, "report.xlsx");
-  };
-
-  // Download Report as CSV
-  const downloadCSV = () => {
-    const csvData = groupedData.flatMap((debtor) => [
-      {
-        "Type": "Basic Info",
-        "Name": debtor.debtor_name,
-        "Client": debtor.client,
-        "Phone": debtor.debtor_phone,
-        "Email": debtor.debtor_email,
-        "Debt Amount": `KES ${debtor.debt_amount.toLocaleString()}`,
-      },
-      ...debtor.followUpHistory.map((followUp) => ({
-        "Type": "Follow-Up History",
-        "Name": debtor.debtor_name,
-        "Status": followUp.status,
-        "Follow-Up Date": new Date(followUp.follow_up_date).toLocaleDateString(),
-        "Notes": followUp.notes,
-        "Created At": new Date(followUp.created_at).toLocaleString(),
-      })),
-      ...debtor.paymentHistory.map((payment) => ({
-        "Type": "Payment History",
-        "Name": debtor.debtor_name,
-        "Amount": `KES ${payment.amount.toLocaleString()}`,
-        "Proof of Payment": "View",
-        "Verified": payment.verified ? "Yes" : "No",
-        "Uploaded At": new Date(payment.uploaded_at).toLocaleString(),
-      })),
-    ]);
-
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, "report.csv");
+    // Ensure the image is loaded before adding it to the PDF
+    img.onerror = function() {
+      alert("Failed to load the letterhead image.");
+    };
   };
 
   return (
@@ -325,25 +283,33 @@ export default function ReportsPage() {
                   <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
 
                   <h5 className="text-md font-semibold mt-4 mb-2">Follow-Up History</h5>
-                  {debtor.followUpHistory.map((followUp) => (
-                    <div key={followUp.id} className="mb-4">
-                      <p><strong>Status:</strong> {followUp.status}</p>
-                      <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
-                      <p><strong>Notes:</strong> {followUp.notes}</p>
-                      <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                  {debtor.followUpHistory.length > 0 ? (
+                    debtor.followUpHistory.map((followUp) => (
+                      <div key={followUp.id} className="mb-4">
+                        <p><strong>Status:</strong> {followUp.status}</p>
+                        <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                        <p><strong>Notes:</strong> {followUp.notes}</p>
+                        <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No follow-up records available.</p>
+                  )}
 
                   <h5 className="text-md font-semibold mt-4 mb-2">Payment History</h5>
-                  {debtor.paymentHistory.map((payment, index) => (
-                    <div key={payment.id} className="mb-4">
-                      <p><strong>{index + 1}</strong></p>
-                      <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
-                      <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
-                      <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
-                      <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                  {debtor.paymentHistory.length > 0 ? (
+                    debtor.paymentHistory.map((payment, index) => (
+                      <div key={payment.id} className="mb-4">
+                        <p><strong>{index + 1}</strong></p>
+                        <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
+                        <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
+                        <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
+                        <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No payment records available.</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -364,25 +330,33 @@ export default function ReportsPage() {
                   <p><strong>Debt Amount:</strong> KES {debtor.debt_amount.toLocaleString()}</p>
 
                   <h5 className="text-md font-semibold mt-4 mb-2">Follow-Up History</h5>
-                  {debtor.followUpHistory.map((followUp) => (
-                    <div key={followUp.id} className="mb-4">
-                      <p><strong>Status:</strong> {followUp.status}</p>
-                      <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
-                      <p><strong>Notes:</strong> {followUp.notes}</p>
-                      <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                  {debtor.followUpHistory.length > 0 ? (
+                    debtor.followUpHistory.map((followUp) => (
+                      <div key={followUp.id} className="mb-4">
+                        <p><strong>Status:</strong> {followUp.status}</p>
+                        <p><strong>Follow-Up Date:</strong> {new Date(followUp.follow_up_date).toLocaleDateString()}</p>
+                        <p><strong>Notes:</strong> {followUp.notes}</p>
+                        <p><strong>Created At:</strong> {new Date(followUp.created_at).toLocaleString()}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No follow-up records available.</p>
+                  )}
 
                   <h5 className="text-md font-semibold mt-4 mb-2">Payment History</h5>
-                  {debtor.paymentHistory.map((payment, index) => (
-                    <div key={payment.id} className="mb-4">
-                      <p><strong>{index + 1}</strong></p>
-                      <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
-                      <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
-                      <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
-                      <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                  {debtor.paymentHistory.length > 0 ? (
+                    debtor.paymentHistory.map((payment, index) => (
+                      <div key={payment.id} className="mb-4">
+                        <p><strong>{index + 1}</strong></p>
+                        <p><strong>Amount:</strong> KES {payment.amount.toLocaleString()}</p>
+                        <p><strong>Proof of Payment:</strong> <a href={payment.pop_url} target="_blank" rel="noopener noreferrer">View</a></p>
+                        <p><strong>Verified:</strong> {payment.verified ? "Yes" : "No"}</p>
+                        <p><strong>Uploaded At:</strong> {new Date(payment.uploaded_at).toLocaleString()}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No payment records available.</p>
+                  )}
                 </div>
               ))}
               {/* Download Buttons */}
@@ -392,18 +366,6 @@ export default function ReportsPage() {
                   className="bg-red-600 text-white px-4 py-2 rounded-md"
                 >
                   Download PDF
-                </button>
-                <button
-                  onClick={downloadExcel}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md"
-                >
-                  Download Excel
-                </button>
-                <button
-                  onClick={downloadCSV}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md"
-                >
-                  Download CSV
                 </button>
                 <button
                   onClick={() => setShowReportModal(false)}
